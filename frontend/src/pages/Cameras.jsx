@@ -17,6 +17,9 @@ const Cameras = () => {
     name: '',
     location: '',
     ip: '',
+    rtspUsername: '',
+    rtspPassword: '',
+    rtspPath: '',
     isRestrictedZone: false,
     status: 'active',
   });
@@ -97,7 +100,7 @@ const Cameras = () => {
         
         setShowModal(false);
         setEditingCamera(null);
-        setFormData({ name: '', location: '', ip: '', isRestrictedZone: false, status: 'active' });
+        setFormData({ name: '', location: '', ip: '', rtspUsername: '', rtspPassword: '', rtspPath: '', isRestrictedZone: false, status: 'active' });
         setAllowedPersonImages([]);
         setExistingAllowedPersons([]);
         if (allowedPersonInputRef.current) {
@@ -132,7 +135,7 @@ const Cameras = () => {
         }
         
         setShowModal(false);
-        setFormData({ name: '', location: '', ip: '', isRestrictedZone: false, status: 'active' });
+        setFormData({ name: '', location: '', ip: '', rtspUsername: '', rtspPassword: '', rtspPath: '', isRestrictedZone: false, status: 'active' });
         setAllowedPersonImages([]);
         if (allowedPersonInputRef.current) {
           allowedPersonInputRef.current.value = '';
@@ -158,6 +161,9 @@ const Cameras = () => {
         name: cameraData.name || '',
         location: cameraData.location || '',
         ip: cameraData.ip_address || '',
+        rtspUsername: cameraData.rtsp_username || '',
+        rtspPassword: cameraData.rtsp_password || '',
+        rtspPath: cameraData.rtsp_path || '',
         isRestrictedZone: cameraData.is_restricted_zone || false,
         status: cameraData.status || 'active',
       });
@@ -199,7 +205,7 @@ const Cameras = () => {
 
   const openAddModal = () => {
     setEditingCamera(null);
-    setFormData({ name: '', location: '', ip: '', isRestrictedZone: false, status: 'active' });
+    setFormData({ name: '', location: '', ip: '', rtspUsername: '', rtspPassword: '', rtspPath: '', isRestrictedZone: false, status: 'active' });
     setAllowedPersonImages([]);
     setExistingAllowedPersons([]);
     setShowModal(true);
@@ -208,7 +214,7 @@ const Cameras = () => {
   const closeModal = () => {
     setShowModal(false);
     setEditingCamera(null);
-    setFormData({ name: '', location: '', ip: '', isRestrictedZone: false, status: 'active' });
+    setFormData({ name: '', location: '', ip: '', rtspUsername: '', rtspPassword: '', rtspPath: '', isRestrictedZone: false, status: 'active' });
     setAllowedPersonImages([]);
     setExistingAllowedPersons([]);
     if (allowedPersonInputRef.current) {
@@ -455,79 +461,133 @@ const Cameras = () => {
       )}
 
       {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-10 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+          <div className="relative mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-gray-900 mb-4">
               {editingCamera ? 'Edit Camera' : 'Add New Camera'}
             </h3>
             <form onSubmit={handleSubmit}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                <input
-                  type="text"
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-                  value={formData.name}
-                  onChange={(e) => {
-                    setFormData({ ...formData, name: e.target.value });
-                    // Clear error when user starts typing
-                    if (error && error.includes('name already exists')) {
-                      setError('');
-                    }
-                  }}
-                  placeholder="Enter unique camera name"
-                />
-                {formData.name && checkDuplicateName(
-                  formData.name,
-                  editingCamera?.id || null
-                ) && (
-                  <p className="mt-1 text-sm text-red-600">
-                    This camera name already exists. Please choose a different name.
-                  </p>
-                )}
+              {/* Two Column Layout */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                {/* Left Column */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                      value={formData.name}
+                      onChange={(e) => {
+                        setFormData({ ...formData, name: e.target.value });
+                        // Clear error when user starts typing
+                        if (error && error.includes('name already exists')) {
+                          setError('');
+                        }
+                      }}
+                      placeholder="Enter unique camera name"
+                    />
+                    {formData.name && checkDuplicateName(
+                      formData.name,
+                      editingCamera?.id || null
+                    ) && (
+                      <p className="mt-1 text-sm text-red-600">
+                        This camera name already exists. Please choose a different name.
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                      value={formData.location}
+                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">IP Address</label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                      placeholder="192.168.1.100"
+                      value={formData.ip}
+                      onChange={(e) => setFormData({ ...formData, ip: e.target.value })}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        className="mr-2 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                        checked={formData.isRestrictedZone}
+                        onChange={(e) => setFormData({ ...formData, isRestrictedZone: e.target.checked })}
+                      />
+                      <span className="text-sm font-medium text-gray-700">Restricted Zone (ON/OFF)</span>
+                    </label>
+                  </div>
+                </div>
+                
+                {/* Right Column - RTSP Configuration */}
+                <div>
+                  <div className="p-3 bg-gray-50 rounded-md border border-gray-200 h-full">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">RTSP Configuration (Optional)</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">RTSP Username</label>
+                        <input
+                          type="text"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                          placeholder="admin"
+                          value={formData.rtspUsername}
+                          onChange={(e) => setFormData({ ...formData, rtspUsername: e.target.value })}
+                        />
+                        <p className="mt-1 text-xs text-gray-500">Leave empty if no authentication</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">RTSP Password</label>
+                        <input
+                          type="password"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                          placeholder="password"
+                          value={formData.rtspPassword}
+                          onChange={(e) => setFormData({ ...formData, rtspPassword: e.target.value })}
+                        />
+                        <p className="mt-1 text-xs text-gray-500">Leave empty if no authentication</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">RTSP Path</label>
+                        <input
+                          type="text"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                          placeholder="/stream1"
+                          value={formData.rtspPath}
+                          onChange={(e) => setFormData({ ...formData, rtspPath: e.target.value })}
+                        />
+                        <p className="mt-1 text-xs text-gray-500">Default: /stream1</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                <input
-                  type="text"
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">IP Address</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  placeholder="192.168.1.100"
-                  value={formData.ip}
-                  onChange={(e) => setFormData({ ...formData, ip: e.target.value })}
-                />
-              </div>
-              <div className="mb-4">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    className="mr-2 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                    checked={formData.isRestrictedZone}
-                    onChange={(e) => setFormData({ ...formData, isRestrictedZone: e.target.checked })}
-                  />
-                  <span className="text-sm font-medium text-gray-700">Restricted Zone (ON/OFF)</span>
-                </label>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
+              
+              {/* Allowed Persons - Full Width */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Allowed Persons Images {editingCamera ? '(Add New)' : '(Multiple)'}

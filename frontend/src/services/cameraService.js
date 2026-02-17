@@ -49,5 +49,20 @@ export const cameraService = {
     const response = await api.delete(`/cameras/${cameraId}/allowed-persons/${allowedPersonId}`);
     return response.data;
   },
+
+  startStream: async (cameraId, rtspConfig = {}) => {
+    const response = await api.post(`/cameras/${cameraId}/stream/start`, rtspConfig);
+    return response.data;
+  },
+
+  stopStream: async (cameraId) => {
+    const response = await api.post(`/cameras/${cameraId}/stream/stop`);
+    return response.data;
+  },
+
+  getStreamStatus: async (cameraId) => {
+    const response = await api.get(`/cameras/${cameraId}/stream/status`);
+    return response.data;
+  },
 };
 

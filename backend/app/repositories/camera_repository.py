@@ -11,7 +11,9 @@ class CameraRepository:
     """Repository for Camera entity operations."""
     
     @staticmethod
-    def create(name: str, location: str, user_id: int, ip_address: str = None, is_restricted_zone: bool = False, status: str = 'active') -> Camera:
+    def create(name: str, location: str, user_id: int, ip_address: str = None, 
+               rtsp_username: str = None, rtsp_password: str = None, rtsp_path: str = None,
+               is_restricted_zone: bool = False, status: str = 'active') -> Camera:
         """
         Create a new camera.
         
@@ -20,6 +22,9 @@ class CameraRepository:
             location: Camera location
             user_id: Owner user ID
             ip_address: Optional IP address
+            rtsp_username: Optional RTSP username
+            rtsp_password: Optional RTSP password
+            rtsp_path: Optional RTSP path (defaults to /stream1 if not provided)
             is_restricted_zone: Whether this is a restricted zone (ON/OFF)
             status: Camera status
             
@@ -31,6 +36,9 @@ class CameraRepository:
             location=location,
             user_id=user_id,
             ip_address=ip_address,
+            rtsp_username=rtsp_username,
+            rtsp_password=rtsp_password,
+            rtsp_path=rtsp_path,
             is_restricted_zone=is_restricted_zone,
             status=status
         )

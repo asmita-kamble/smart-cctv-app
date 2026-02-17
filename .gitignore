@@ -166,6 +166,8 @@ secrets/
 # ============================================
 backend/instance/
 backend/uploads/
+backend/streams/
+streams/
 
 # ============================================
 # Optional: Development Tools
