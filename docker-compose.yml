@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: smart-cctv-backend
+    environment:
+      # Flask Configuration
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
+      FLASK_ENV: ${FLASK_ENV:-production}
+      PORT: 5001
+      
+      # PostgreSQL Configuration (using host database)
+      # On macOS/Windows Docker Desktop: use host.docker.internal
+      # On Linux: use host.docker.internal or set network_mode: host
+      POSTGRES_HOST: ${POSTGRES_HOST:-host.docker.internal}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-smart_cctv}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      
+      # MongoDB Configuration (using host database)
+      # On macOS/Windows Docker Desktop: use host.docker.internal
+      # On Linux: use host.docker.internal or set network_mode: host
+      MONGODB_HOST: ${MONGODB_HOST:-host.docker.internal}
+      MONGODB_PORT: ${MONGODB_PORT:-27017}
+      MONGODB_DB: ${MONGODB_DB:-smart_cctv_metadata}
+      
+      # CORS Configuration
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:80}
+      
+      # Upload Configuration
+      UPLOAD_FOLDER: /app/uploads
+      MAX_CONTENT_LENGTH: ${MAX_CONTENT_LENGTH:-1073741824}
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./uploads:/app/uploads
+    ports:
+      - "${BACKEND_PORT:-5001}:5001"
+    extra_hosts:
+      # Add host.docker.internal for Linux compatibility
+      - "host.docker.internal:host-gateway"
+    networks:
+      - smart-cctv-network
+    restart: unless-stopped
+
+  # Frontend React App
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: smart-cctv-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - backend
+    networks:
+      - smart-cctv-network
+    restart: unless-stopped
+
+networks:
+  smart-cctv-network:
+    driver: bridge
+

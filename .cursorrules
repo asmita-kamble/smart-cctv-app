@@ -1,0 +1,52 @@
+# Smart CCTV Project Rules
+
+This project follows a layered architecture with clear separation of concerns.
+
+## Architecture
+
+- **Backend**: Flask API with Controllers → Services → Repositories → Models pattern
+- **Frontend**: React with functional components and hooks
+- **Databases**: PostgreSQL (relational) + MongoDB (metadata)
+
+## Key Principles
+
+1. **Maintain Layer Separation**: Never bypass layers (e.g., don't call repositories from controllers)
+2. **Single Responsibility**: Each module has one clear purpose
+3. **Error Handling**: Always handle errors gracefully with proper HTTP status codes
+4. **Security First**: Validate input, use authentication, check permissions
+
+## Backend Rules
+
+- Controllers handle HTTP requests/responses only
+- Services contain business logic
+- Repositories handle data access
+- Models define database entities
+- Use `@require_auth` for protected routes
+- Use `@require_admin` for admin-only endpoints
+- Services return tuples: `(result_dict, status_code)`
+
+## Frontend Rules
+
+- Use functional components with hooks
+- Create service files for API calls
+- Use Tailwind CSS for styling
+- Handle loading and error states
+- Protect routes with authentication
+
+## Code Style
+
+- Follow existing patterns
+- Use descriptive names
+- Document public methods
+- Handle errors properly
+- Write tests for critical functionality
+
+## When Adding Features
+
+1. Backend: Model → Repository → Service → Controller → Route
+2. Frontend: Service → Component → Page → Route
+3. Update documentation
+4. Add tests
+
+See `.cursor/rules/` for detailed rules by category.
+
