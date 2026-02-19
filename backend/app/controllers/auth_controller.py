@@ -64,3 +64,44 @@ def get_current_user(current_user):
         'user': current_user.to_dict()
     }), 200
 
+
+@auth_bp.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    """Request password reset token."""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        email = data.get('email')
+        
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        
+        result, status_code = AuthService.forgot_password(email)
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'error': f'Forgot password error: {str(e)}'}), 500
+
+
+@auth_bp.route('/reset-password', methods=['POST'])
+def reset_password():
+    """Reset password using reset token."""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        token = data.get('token')
+        new_password = data.get('password')
+        
+        if not token or not new_password:
+            return jsonify({'error': 'Token and password are required'}), 400
+        
+        result, status_code = AuthService.reset_password(token, new_password)
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'error': f'Reset password error: {str(e)}'}), 500
+

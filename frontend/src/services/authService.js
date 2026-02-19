@@ -110,5 +110,33 @@ export const authService = {
   isAuthenticated: () => {
     return !!localStorage.getItem('token');
   },
+
+  forgotPassword: async (email) => {
+    try {
+      const response = await api.post('/auth/forgot-password', { email });
+      return response.data;
+    } catch (error) {
+      console.error('authService.forgotPassword error:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      throw error;
+    }
+  },
+
+  resetPassword: async (token, password) => {
+    try {
+      const response = await api.post('/auth/reset-password', { token, password });
+      return response.data;
+    } catch (error) {
+      console.error('authService.resetPassword error:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      throw error;
+    }
+  },
 };
 

@@ -78,4 +78,18 @@ class UserRepository:
     def exists_by_username(username: str) -> bool:
         """Check if user with username exists."""
         return User.query.filter_by(username=username).first() is not None
+    
+    @staticmethod
+    def find_by_reset_token(token: str) -> Optional[User]:
+        """Find user by reset token."""
+        return User.query.filter_by(reset_token=token).first()
+    
+    @staticmethod
+    def update_password(user: User, new_password: str) -> User:
+        """Update user password and clear reset token."""
+        user.set_password(new_password)
+        user.reset_token = None
+        user.reset_token_expires = None
+        db.session.commit()
+        return user
 

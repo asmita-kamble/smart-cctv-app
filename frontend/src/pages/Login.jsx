@@ -232,7 +232,7 @@ const Login = () => {
 
           <div className="text-center">
             <Link 
-              to="#" 
+              to="/forgot-password" 
               className="inline-block px-4 py-2 text-sm font-medium text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
             >
               Forget Password?
