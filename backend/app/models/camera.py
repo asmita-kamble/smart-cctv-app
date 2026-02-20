@@ -3,6 +3,7 @@ Camera model for managing surveillance cameras and locations.
 """
 from datetime import datetime
 from app.utils.database import db
+import json
 
 
 class Camera(db.Model):
@@ -35,6 +36,19 @@ class Camera(db.Model):
     is_restricted_zone = db.Column(db.Boolean, default=False, nullable=False)  # ON/OFF toggle for restricted zone
     status = db.Column(db.String(20), default='active', nullable=False)  # active/inactive/maintenance
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    # Camera Calibration Fields
+    pixels_per_meter = db.Column(db.Float, nullable=True)  # Pixels per meter for distance/speed calculation
+    camera_height = db.Column(db.Float, nullable=True)  # Camera height in meters
+    camera_angle = db.Column(db.Float, nullable=True)  # Camera angle in degrees (0 = horizontal, 90 = vertical down)
+    reference_object_height = db.Column(db.Float, nullable=True)  # Reference object height in meters (e.g., average person height)
+    
+    # Zone Configuration (stored as JSON)
+    red_zones = db.Column(db.Text, nullable=True)  # JSON array of red zone definitions
+    yellow_zones = db.Column(db.Text, nullable=True)  # JSON array of yellow zone definitions
+    sensitive_areas = db.Column(db.Text, nullable=True)  # JSON array of sensitive area definitions
+    perimeter_lines = db.Column(db.Text, nullable=True)  # JSON array of perimeter line definitions
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -60,12 +74,31 @@ class Camera(db.Model):
             'status': self.status,
             'user_id': self.user_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            # Calibration fields
+            'pixels_per_meter': self.pixels_per_meter,
+            'camera_height': self.camera_height,
+            'camera_angle': self.camera_angle,
+            'reference_object_height': self.reference_object_height,
+            # Zone configurations (parse JSON)
+            'red_zones': self._parse_json_field(self.red_zones),
+            'yellow_zones': self._parse_json_field(self.yellow_zones),
+            'sensitive_areas': self._parse_json_field(self.sensitive_areas),
+            'perimeter_lines': self._parse_json_field(self.perimeter_lines)
         }
         # Only include password if explicitly requested (for internal use)
         if include_password:
             result['rtsp_password'] = self.rtsp_password
         return result
+    
+    def _parse_json_field(self, field_value):
+        """Parse JSON field safely."""
+        if not field_value:
+            return []
+        try:
+            return json.loads(field_value)
+        except (json.JSONDecodeError, TypeError):
+            return []
     
     def __repr__(self):
         return f'<Camera {self.name} at {self.location}>'

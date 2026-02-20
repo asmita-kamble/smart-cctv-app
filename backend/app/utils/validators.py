@@ -25,7 +25,7 @@ def validate_password(password):
 
 def validate_video_file(filename):
     """Validate video file extension."""
-    allowed_extensions = {'mp4', 'avi', 'mov', 'mkv'}
+    allowed_extensions = {'mp4', 'avi', 'mov', 'mkv', 'webm'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
 

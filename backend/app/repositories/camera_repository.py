@@ -13,7 +13,11 @@ class CameraRepository:
     @staticmethod
     def create(name: str, location: str, user_id: int, ip_address: str = None, 
                rtsp_username: str = None, rtsp_password: str = None, rtsp_path: str = None,
-               is_restricted_zone: bool = False, status: str = 'active') -> Camera:
+               is_restricted_zone: bool = False, status: str = 'active',
+               pixels_per_meter: float = None, camera_height: float = None,
+               camera_angle: float = None, reference_object_height: float = None,
+               red_zones: str = None, yellow_zones: str = None,
+               sensitive_areas: str = None, perimeter_lines: str = None) -> Camera:
         """
         Create a new camera.
         
@@ -40,7 +44,15 @@ class CameraRepository:
             rtsp_password=rtsp_password,
             rtsp_path=rtsp_path,
             is_restricted_zone=is_restricted_zone,
-            status=status
+            status=status,
+            pixels_per_meter=pixels_per_meter,
+            camera_height=camera_height,
+            camera_angle=camera_angle,
+            reference_object_height=reference_object_height,
+            red_zones=red_zones,
+            yellow_zones=yellow_zones,
+            sensitive_areas=sensitive_areas,
+            perimeter_lines=perimeter_lines
         )
         db.session.add(camera)
         db.session.commit()

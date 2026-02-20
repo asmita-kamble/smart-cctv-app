@@ -5,6 +5,7 @@ Initializes the application with all configurations and extensions.
 from flask import Flask
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from flask_mail import Mail
 from app.config import config
 from app.utils.database import db
 from app.routes import register_routes
@@ -35,6 +36,7 @@ def create_app(config_name='default'):
          allow_headers=['Content-Type', 'Authorization'],
          methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
     JWTManager(app)
+    Mail(app)
     
     # Register routes
     register_routes(app)

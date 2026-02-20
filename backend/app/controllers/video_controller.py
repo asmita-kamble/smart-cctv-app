@@ -40,7 +40,7 @@ def upload_video(current_user):
     # Validate file
     video_service = VideoProcessingService()
     if not video_service.validate_video_file(file.filename):
-        return jsonify({'error': 'Invalid file type. Allowed: mp4, avi, mov, mkv'}), 400
+        return jsonify({'error': 'Invalid file type. Allowed: mp4, avi, mov, mkv, webm'}), 400
     
     try:
         # Save video

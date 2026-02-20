@@ -88,6 +88,19 @@ class AlertRepository:
         return query.all()
     
     @staticmethod
+    def find_recent_by_camera_and_type(camera_id: int, alert_type: str, 
+                                       start_date: datetime, limit: int = 50) -> List[Alert]:
+        """Find recent alerts by camera and alert type within a date range."""
+        query = Alert.query.filter(
+            Alert.camera_id == camera_id,
+            Alert.alert_type == alert_type,
+            Alert.created_at >= start_date
+        ).order_by(Alert.created_at.desc())
+        if limit:
+            query = query.limit(limit)
+        return query.all()
+    
+    @staticmethod
     def update(alert: Alert) -> Alert:
         """Update alert in database."""
         db.session.commit()

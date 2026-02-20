@@ -17,7 +17,7 @@ class ActivityDetectionService:
         self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
             history=500, varThreshold=50, detectShadows=True
         )
-        self.motion_threshold = 1000  # Minimum pixels for motion detection
+        self.motion_threshold = 500  # Lower threshold: Minimum pixels for motion detection (reduced from 1000)
         self.suspicious_activity_types = [
             'rapid_movement',
             'loitering',
@@ -81,13 +81,15 @@ class ActivityDetectionService:
         motion_result = self.detect_motion(frame)
         
         # Check for rapid movement (high motion percentage)
-        if motion_result['motion_percentage'] > 15:  # More than 15% of frame has motion
+        # Lower threshold to be more sensitive (5% instead of 15%)
+        motion_threshold = 5.0  # More than 5% of frame has motion
+        if motion_result['motion_percentage'] > motion_threshold:
             results['is_suspicious'] = True
             results['activity_type'] = 'rapid_movement'
-            results['confidence'] = min(motion_result['motion_percentage'] / 50, 1.0)
+            results['confidence'] = min(motion_result['motion_percentage'] / 30, 1.0)  # Adjusted scaling
             results['details'] = {
                 'motion_percentage': motion_result['motion_percentage'],
-                'reason': 'High motion detected'
+                'reason': f'High motion detected ({motion_result["motion_percentage"]:.1f}%)'
             }
         
         # Frame difference analysis (if previous frame available)

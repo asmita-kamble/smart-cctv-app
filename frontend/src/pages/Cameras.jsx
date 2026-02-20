@@ -22,7 +22,18 @@ const Cameras = () => {
     rtspPath: '',
     isRestrictedZone: false,
     status: 'active',
+    // Calibration fields
+    pixels_per_meter: '',
+    camera_height: '',
+    camera_angle: '',
+    reference_object_height: '',
+    // Zone configuration
+    red_zones: [],
+    yellow_zones: [],
+    sensitive_areas: [],
+    perimeter_lines: [],
   });
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [allowedPersonImages, setAllowedPersonImages] = useState([]);
   const [existingAllowedPersons, setExistingAllowedPersons] = useState([]);
   const [viewingImage, setViewingImage] = useState(null);
@@ -100,7 +111,12 @@ const Cameras = () => {
         
         setShowModal(false);
         setEditingCamera(null);
-        setFormData({ name: '', location: '', ip: '', rtspUsername: '', rtspPassword: '', rtspPath: '', isRestrictedZone: false, status: 'active' });
+        setFormData({ 
+        name: '', location: '', ip: '', rtspUsername: '', rtspPassword: '', rtspPath: '', 
+        isRestrictedZone: false, status: 'active',
+        pixels_per_meter: '', camera_height: '', camera_angle: '', reference_object_height: '',
+        red_zones: [], yellow_zones: [], sensitive_areas: [], perimeter_lines: []
+      });
         setAllowedPersonImages([]);
         setExistingAllowedPersons([]);
         if (allowedPersonInputRef.current) {
@@ -135,7 +151,12 @@ const Cameras = () => {
         }
         
         setShowModal(false);
-        setFormData({ name: '', location: '', ip: '', rtspUsername: '', rtspPassword: '', rtspPath: '', isRestrictedZone: false, status: 'active' });
+        setFormData({ 
+        name: '', location: '', ip: '', rtspUsername: '', rtspPassword: '', rtspPath: '', 
+        isRestrictedZone: false, status: 'active',
+        pixels_per_meter: '', camera_height: '', camera_angle: '', reference_object_height: '',
+        red_zones: [], yellow_zones: [], sensitive_areas: [], perimeter_lines: []
+      });
         setAllowedPersonImages([]);
         if (allowedPersonInputRef.current) {
           allowedPersonInputRef.current.value = '';
@@ -164,8 +185,18 @@ const Cameras = () => {
         rtspUsername: cameraData.rtsp_username || '',
         rtspPassword: cameraData.rtsp_password || '',
         rtspPath: cameraData.rtsp_path || '',
-        isRestrictedZone: cameraData.is_restricted_zone || false,
+        isRestrictedZone: Boolean(cameraData.is_restricted_zone) || cameraData.isRestrictedZone === true,
         status: cameraData.status || 'active',
+        // Calibration fields
+        pixels_per_meter: cameraData.pixels_per_meter || '',
+        camera_height: cameraData.camera_height || '',
+        camera_angle: cameraData.camera_angle || '',
+        reference_object_height: cameraData.reference_object_height || '',
+        // Zone configuration
+        red_zones: cameraData.red_zones || [],
+        yellow_zones: cameraData.yellow_zones || [],
+        sensitive_areas: cameraData.sensitive_areas || [],
+        perimeter_lines: cameraData.perimeter_lines || [],
       });
       
       // Load existing allowed persons
@@ -586,6 +617,186 @@ const Cameras = () => {
                   </div>
                 </div>
               </div>
+              
+              {/* Advanced Configuration Toggle */}
+              <div className="mb-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="flex items-center text-sm font-medium text-primary-600 hover:text-primary-700"
+                >
+                  <svg
+                    className={`w-5 h-5 mr-2 transition-transform ${showAdvanced ? 'rotate-90' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  {showAdvanced ? 'Hide' : 'Show'} Advanced Configuration (Calibration & Zones)
+                </button>
+              </div>
+              
+              {/* Advanced Configuration: Calibration & Zones */}
+              {showAdvanced && (
+                <div className="mb-4 space-y-4">
+                  {/* Camera Calibration Section */}
+                  <div className="p-4 bg-blue-50 rounded-md border border-blue-200">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Camera Calibration</h4>
+                    <p className="text-xs text-gray-600 mb-3">
+                      Configure calibration parameters for accurate distance and speed measurements.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Pixels per Meter
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                          placeholder="50.0"
+                          value={formData.pixels_per_meter}
+                          onChange={(e) => setFormData({ ...formData, pixels_per_meter: e.target.value })}
+                        />
+                        <p className="mt-1 text-xs text-gray-500">For distance/speed calculations</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Camera Height (meters)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                          placeholder="3.0"
+                          value={formData.camera_height}
+                          onChange={(e) => setFormData({ ...formData, camera_height: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Camera Angle (degrees)
+                        </label>
+                        <input
+                          type="number"
+                          step="1"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                          placeholder="45"
+                          value={formData.camera_angle}
+                          onChange={(e) => setFormData({ ...formData, camera_angle: e.target.value })}
+                        />
+                        <p className="mt-1 text-xs text-gray-500">0 = horizontal, 90 = vertical down</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Reference Object Height (meters)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                          placeholder="1.7"
+                          value={formData.reference_object_height}
+                          onChange={(e) => setFormData({ ...formData, reference_object_height: e.target.value })}
+                        />
+                        <p className="mt-1 text-xs text-gray-500">Average person height: 1.7m</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Zone Configuration Section */}
+                  <div className="p-4 bg-yellow-50 rounded-md border border-yellow-200">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Zone Configuration</h4>
+                    <p className="text-xs text-gray-600 mb-3">
+                      Define security zones for intrusion detection. Zones are defined as JSON arrays.
+                      Format: [&#123;"type": "rectangle", "name": "Zone Name", "top_left": [x, y], "bottom_right": [x, y]&#125;]
+                    </p>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Red Zones (Critical - No Access Areas)
+                        </label>
+                        <textarea
+                          rows="3"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 font-mono text-xs"
+                          placeholder='[{"type": "rectangle", "name": "Server Room", "top_left": [100, 100], "bottom_right": [300, 300]}]'
+                          value={JSON.stringify(formData.red_zones, null, 2)}
+                          onChange={(e) => {
+                            try {
+                              const parsed = JSON.parse(e.target.value);
+                              setFormData({ ...formData, red_zones: Array.isArray(parsed) ? parsed : [] });
+                            } catch {
+                              // Invalid JSON, keep as is
+                            }
+                          }}
+                        />
+                        <p className="mt-1 text-xs text-gray-500">JSON array of red zone definitions</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Yellow Zones (Warning Areas)
+                        </label>
+                        <textarea
+                          rows="3"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 font-mono text-xs"
+                          placeholder='[{"type": "rectangle", "name": "Parking Area", "top_left": [50, 50], "bottom_right": [400, 400]}]'
+                          value={JSON.stringify(formData.yellow_zones, null, 2)}
+                          onChange={(e) => {
+                            try {
+                              const parsed = JSON.parse(e.target.value);
+                              setFormData({ ...formData, yellow_zones: Array.isArray(parsed) ? parsed : [] });
+                            } catch {
+                              // Invalid JSON, keep as is
+                            }
+                          }}
+                        />
+                        <p className="mt-1 text-xs text-gray-500">JSON array of yellow zone definitions</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Sensitive Areas
+                        </label>
+                        <textarea
+                          rows="2"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 font-mono text-xs"
+                          placeholder='[{"type": "circle", "name": "Entrance", "center": [200, 200], "radius": 50}]'
+                          value={JSON.stringify(formData.sensitive_areas, null, 2)}
+                          onChange={(e) => {
+                            try {
+                              const parsed = JSON.parse(e.target.value);
+                              setFormData({ ...formData, sensitive_areas: Array.isArray(parsed) ? parsed : [] });
+                            } catch {
+                              // Invalid JSON, keep as is
+                            }
+                          }}
+                        />
+                        <p className="mt-1 text-xs text-gray-500">JSON array of sensitive area definitions</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Perimeter Lines
+                        </label>
+                        <textarea
+                          rows="2"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 font-mono text-xs"
+                          placeholder='[{"name": "Main Gate", "start": [0, 100], "end": [640, 100]}]'
+                          value={JSON.stringify(formData.perimeter_lines, null, 2)}
+                          onChange={(e) => {
+                            try {
+                              const parsed = JSON.parse(e.target.value);
+                              setFormData({ ...formData, perimeter_lines: Array.isArray(parsed) ? parsed : [] });
+                            } catch {
+                              // Invalid JSON, keep as is
+                            }
+                          }}
+                        />
+                        <p className="mt-1 text-xs text-gray-500">JSON array of perimeter line definitions</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               {/* Allowed Persons - Full Width */}
               <div className="mb-4">

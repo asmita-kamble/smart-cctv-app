@@ -7,6 +7,7 @@ from app.repositories.camera_repository import CameraRepository
 from app.middleware.auth_middleware import require_auth, require_admin
 from app.services.streaming_service import streaming_service
 import os
+import json
 
 camera_bp = Blueprint('camera', __name__, url_prefix='/api/cameras')
 
@@ -26,8 +27,40 @@ def create_camera(current_user):
     rtsp_username = data.get('rtsp_username') or data.get('rtspUsername')
     rtsp_password = data.get('rtsp_password') or data.get('rtspPassword')
     rtsp_path = data.get('rtsp_path') or data.get('rtspPath')
-    is_restricted_zone = data.get('is_restricted_zone', False)
+    # Handle both camelCase and snake_case for is_restricted_zone
+    is_restricted_zone = data.get('is_restricted_zone') or data.get('isRestrictedZone', False)
+    # Ensure it's a boolean
+    is_restricted_zone = bool(is_restricted_zone) if is_restricted_zone is not None else False
     status = data.get('status', 'active')
+    
+    # Calibration fields - convert empty strings to None
+    pixels_per_meter = data.get('pixels_per_meter')
+    pixels_per_meter = float(pixels_per_meter) if pixels_per_meter and str(pixels_per_meter).strip() else None
+    
+    camera_height = data.get('camera_height')
+    camera_height = float(camera_height) if camera_height and str(camera_height).strip() else None
+    
+    camera_angle = data.get('camera_angle')
+    camera_angle = float(camera_angle) if camera_angle and str(camera_angle).strip() else None
+    
+    reference_object_height = data.get('reference_object_height')
+    reference_object_height = float(reference_object_height) if reference_object_height and str(reference_object_height).strip() else None
+    
+    # Zone configuration fields (convert to JSON strings)
+    red_zones = data.get('red_zones')
+    yellow_zones = data.get('yellow_zones')
+    sensitive_areas = data.get('sensitive_areas')
+    perimeter_lines = data.get('perimeter_lines')
+    
+    # Convert zone configs to JSON strings if they're dicts/lists
+    if red_zones and not isinstance(red_zones, str):
+        red_zones = json.dumps(red_zones)
+    if yellow_zones and not isinstance(yellow_zones, str):
+        yellow_zones = json.dumps(yellow_zones)
+    if sensitive_areas and not isinstance(sensitive_areas, str):
+        sensitive_areas = json.dumps(sensitive_areas)
+    if perimeter_lines and not isinstance(perimeter_lines, str):
+        perimeter_lines = json.dumps(perimeter_lines)
     
     if not name or not location:
         return jsonify({'error': 'Name and location are required'}), 400
@@ -47,7 +80,15 @@ def create_camera(current_user):
             rtsp_password=rtsp_password,
             rtsp_path=rtsp_path,
             is_restricted_zone=is_restricted_zone,
-            status=status
+            status=status,
+            pixels_per_meter=pixels_per_meter,
+            camera_height=camera_height,
+            camera_angle=camera_angle,
+            reference_object_height=reference_object_height,
+            red_zones=red_zones,
+            yellow_zones=yellow_zones,
+            sensitive_areas=sensitive_areas,
+            perimeter_lines=perimeter_lines
         )
         return jsonify({
             'message': 'Camera created successfully',
@@ -124,10 +165,40 @@ def update_camera(camera_id, current_user):
             camera.rtsp_password = data.get('rtsp_password') or data.get('rtspPassword')
         if 'rtsp_path' in data or 'rtspPath' in data:
             camera.rtsp_path = data.get('rtsp_path') or data.get('rtspPath')
-        if 'is_restricted_zone' in data:
-            camera.is_restricted_zone = data['is_restricted_zone']
+        if 'is_restricted_zone' in data or 'isRestrictedZone' in data:
+            is_restricted_zone = data.get('is_restricted_zone') or data.get('isRestrictedZone', False)
+            # Ensure it's a boolean
+            camera.is_restricted_zone = bool(is_restricted_zone) if is_restricted_zone is not None else False
         if 'status' in data:
             camera.status = data['status']
+        
+        # Calibration fields - convert empty strings to None
+        if 'pixels_per_meter' in data:
+            pixels_per_meter = data['pixels_per_meter']
+            camera.pixels_per_meter = float(pixels_per_meter) if pixels_per_meter and str(pixels_per_meter).strip() else None
+        if 'camera_height' in data:
+            camera_height = data['camera_height']
+            camera.camera_height = float(camera_height) if camera_height and str(camera_height).strip() else None
+        if 'camera_angle' in data:
+            camera_angle = data['camera_angle']
+            camera.camera_angle = float(camera_angle) if camera_angle and str(camera_angle).strip() else None
+        if 'reference_object_height' in data:
+            reference_object_height = data['reference_object_height']
+            camera.reference_object_height = float(reference_object_height) if reference_object_height and str(reference_object_height).strip() else None
+        
+        # Zone configuration fields
+        if 'red_zones' in data:
+            red_zones = data['red_zones']
+            camera.red_zones = json.dumps(red_zones) if not isinstance(red_zones, str) else red_zones
+        if 'yellow_zones' in data:
+            yellow_zones = data['yellow_zones']
+            camera.yellow_zones = json.dumps(yellow_zones) if not isinstance(yellow_zones, str) else yellow_zones
+        if 'sensitive_areas' in data:
+            sensitive_areas = data['sensitive_areas']
+            camera.sensitive_areas = json.dumps(sensitive_areas) if not isinstance(sensitive_areas, str) else sensitive_areas
+        if 'perimeter_lines' in data:
+            perimeter_lines = data['perimeter_lines']
+            camera.perimeter_lines = json.dumps(perimeter_lines) if not isinstance(perimeter_lines, str) else perimeter_lines
         
         try:
             CameraRepository.update(camera)
