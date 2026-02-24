@@ -7,12 +7,11 @@ const FACE_MODEL =
 
 const FACE_BORDER_COLOR = '#00e676';
 const FACE_BORDER_WIDTH = 3;
-const DETECTION_INTERVAL_MS = 150;
-const DETECTION_PERSIST_MS = 600;
+const DETECTION_INTERVAL_MS = 120;
+const DETECTION_PERSIST_MS = 500;
 
 /**
  * Loads the MediaPipe Face Detector once (IMAGE mode) for reuse.
- * IMAGE mode treats each frame independently so replay and seeking work.
  */
 let cachedDetector = null;
 async function getFaceDetector() {
