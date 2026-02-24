@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { alertService } from '../services/alertService';
+import AlertMediaViewer from '../components/AlertMediaViewer';
 
 const Alerts = () => {
   const [alerts, setAlerts] = useState([]);
@@ -270,34 +271,11 @@ const Alerts = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            <div className="bg-white rounded-lg overflow-hidden">
-              <div className="p-4 border-b">
-                <h3 className="text-lg font-semibold text-gray-900">{viewingImage.name}</h3>
-              </div>
-              <div className="p-4">
-                {viewingImage.isVideo ? (
-                  <video
-                    src={viewingImage.url}
-                    controls
-                    className="max-w-full max-h-[70vh] mx-auto"
-                    onError={(e) => {
-                      console.error('Video load error:', e);
-                    }}
-                  >
-                    Your browser does not support the video tag.
-                  </video>
-                ) : (
-                  <img
-                    src={viewingImage.url}
-                    alt={viewingImage.name}
-                    className="max-w-full max-h-[70vh] mx-auto object-contain"
-                    onError={(e) => {
-                      e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect width="400" height="300" fill="%23ddd"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999"%3EImage not found%3C/text%3E%3C/svg%3E';
-                    }}
-                  />
-                )}
-              </div>
-            </div>
+            <AlertMediaViewer
+              src={viewingImage.url}
+              name={viewingImage.name}
+              isVideo={viewingImage.isVideo}
+            />
           </div>
         </div>
       )}
