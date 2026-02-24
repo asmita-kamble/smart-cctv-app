@@ -16,7 +16,10 @@ from app.services.object_detection_service import ObjectDetectionService
 from app.services.camera_calibration_service import CameraCalibrationService
 from app.repositories.activity_repository import ActivityRepository
 from app.repositories.camera_repository import CameraRepository
+from app.repositories.allowed_person_repository import AllowedPersonRepository
 from app.services.alert_service import AlertService
+import numpy as np
+import face_recognition
 
 
 class VideoProcessingService:
@@ -135,7 +138,21 @@ class VideoProcessingService:
             cap = cv2.VideoCapture(video_path)
             fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
             cap.release()
-            
+
+            # Build allowed-person encodings for restricted zone (for playback name overlay)
+            allowed_encodings_with_names = []  # list of (name, encoding)
+            is_restricted = camera_config.get('is_restricted_zone', False)
+            if is_restricted:
+                allowed_persons = AllowedPersonRepository.find_by_camera_id(camera_id)
+                for ap in allowed_persons:
+                    if not ap.name or not ap.image_path:
+                        continue
+                    enc = self.face_detection.get_encoding_from_image_path(ap.image_path)
+                    if enc is not None:
+                        allowed_encodings_with_names.append((ap.name, enc))
+
+            allowed_matches_by_frame = {}  # frame_num -> [{"bbox": [x,y,w,h], "name": "..."}]
+
             for frame_num, frame in self.extract_frames(video_path, frame_interval=30):
                 timestamp = datetime.utcnow()
                 
@@ -148,6 +165,29 @@ class VideoProcessingService:
                 
                 # Face detection (for mask and spoofing detection)
                 face_results = self.face_detection.process_frame(frame)
+
+                # Match faces to allowed persons when restricted zone has allowed list (for playback overlay)
+                if allowed_encodings_with_names:
+                    faces_with_encodings = self.face_detection.detect_faces(frame)
+                    frame_matches = []
+                    for face in faces_with_encodings:
+                        enc_list = face.get('encoding')
+                        if enc_list is None:
+                            continue
+                        face_enc = np.array(enc_list, dtype=np.float64)
+                        loc = face['location']
+                        # bbox as [x, y, w, h] (left, top, width, height)
+                        bbox = [
+                            int(loc['left']),
+                            int(loc['top']),
+                            int(loc['right'] - loc['left']),
+                            int(loc['bottom'] - loc['top'])
+                        ]
+                        for name, allowed_enc in allowed_encodings_with_names:
+                            if face_recognition.compare_faces([allowed_enc], face_enc, tolerance=0.6)[0]:
+                                frame_matches.append({'bbox': bbox, 'name': name})
+                                break
+                    allowed_matches_by_frame[str(frame_num)] = frame_matches
                 results['faces_detected'] += face_results['faces_detected']
                 
                 # Object detection for weapons and abandoned objects
@@ -380,6 +420,15 @@ class VideoProcessingService:
                 
                 previous_frame = frame.copy()
                 results['frames_processed'] += 1
+
+            # Save allowed-person match data for playback overlay (restricted zone + allowed persons with names)
+            if allowed_matches_by_frame:
+                try:
+                    detections_path = video_path + '.allowed_matches.json'
+                    with open(detections_path, 'w') as f:
+                        json.dump({'fps': fps, 'frames': allowed_matches_by_frame}, f)
+                except Exception as save_err:
+                    print(f"Warning: could not save allowed matches JSON: {save_err}")
         
         except Exception as e:
             return {'error': f'Video processing failed: {str(e)}'}, 500

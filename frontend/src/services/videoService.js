@@ -35,5 +35,15 @@ export const videoService = {
   getMediaUrl: (filename) => {
     return `${api.defaults.baseURL}/videos/media/${filename}`;
   },
+
+  getDetections: async (cameraId, videoFilename) => {
+    if (!cameraId || !videoFilename) return { fps: 30, frames: {} };
+    const name = typeof videoFilename === 'string' ? videoFilename.split(/[/\\]/).pop() : '';
+    if (!name) return { fps: 30, frames: {} };
+    const response = await api.get('/videos/detections', {
+      params: { camera_id: cameraId, video_filename: name },
+    });
+    return response.data || { fps: 30, frames: {} };
+  },
 };
 

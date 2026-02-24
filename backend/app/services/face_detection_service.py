@@ -7,6 +7,7 @@ import numpy as np
 import face_recognition
 from typing import Dict, List, Tuple, Optional
 import json
+import os
 
 
 class FaceDetectionService:
@@ -50,6 +51,29 @@ class FaceDetectionService:
             faces.append(face_data)
         
         return faces
+
+    def get_encoding_from_image_path(self, image_path: str) -> Optional[np.ndarray]:
+        """
+        Load an image from path and return the first face encoding (for allowed-person matching).
+
+        Args:
+            image_path: Path to image file
+
+        Returns:
+            Face encoding as numpy array, or None if no face found or file missing
+        """
+        if not image_path or not os.path.isfile(image_path):
+            return None
+        try:
+            image = cv2.imread(image_path)
+            if image is None:
+                return None
+            rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            face_locations = face_recognition.face_locations(rgb)
+            encodings = face_recognition.face_encodings(rgb, face_locations)
+            return encodings[0] if encodings else None
+        except Exception:
+            return None
     
     def detect_spoofed_face(self, frame: np.ndarray, face_location: Tuple) -> Dict:
         """

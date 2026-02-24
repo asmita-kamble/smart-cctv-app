@@ -9,6 +9,7 @@ from app.middleware.auth_middleware import require_auth
 from app.utils.validators import validate_video_file, validate_image_file
 from app.config import Config
 import os
+import json
 
 video_bp = Blueprint('video', __name__, url_prefix='/api/videos')
 
@@ -142,6 +143,37 @@ def upload_image(current_user):
     
     except Exception as e:
         return jsonify({'error': f'Image processing failed: {str(e)}'}), 500
+
+
+@video_bp.route('/detections', methods=['GET'])
+@require_auth
+def get_video_detections(current_user):
+    """
+    Get allowed-person match detections for a video (for playback overlay).
+    Used when camera is restricted zone and has allowed persons with names.
+    """
+    camera_id = request.args.get('camera_id', type=int)
+    video_filename = request.args.get('video_filename', '').strip()
+    if not camera_id or not video_filename:
+        return jsonify({'fps': 30, 'frames': {}}), 200
+    # Security: allow only basename to avoid path traversal
+    if os.path.basename(video_filename) != video_filename:
+        return jsonify({'fps': 30, 'frames': {}}), 200
+    camera = CameraRepository.find_by_id(camera_id)
+    if not camera:
+        return jsonify({'error': 'Camera not found'}), 404
+    if not current_user.is_admin() and camera.user_id != current_user.id:
+        return jsonify({'error': 'Access denied'}), 403
+    video_path = os.path.join(Config.UPLOAD_FOLDER, video_filename)
+    json_path = video_path + '.allowed_matches.json'
+    if not os.path.isfile(json_path):
+        return jsonify({'fps': 30, 'frames': {}}), 200
+    try:
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+        return jsonify(data), 200
+    except Exception:
+        return jsonify({'fps': 30, 'frames': {}}), 200
 
 
 @video_bp.route('/media/<path:filename>', methods=['GET'])

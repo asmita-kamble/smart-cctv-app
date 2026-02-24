@@ -101,7 +101,13 @@ const Alerts = () => {
 
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
-      setViewingImage({ url: blobUrl, name: mediaName, isVideo: isVideo(alert) });
+      setViewingImage({
+        url: blobUrl,
+        name: mediaName,
+        isVideo: isVideo(alert),
+        cameraId: alert.camera_id,
+        videoPath: alert.metadata?.video_path,
+      });
     } catch (error) {
       console.error('Error loading media:', error);
       setError('Failed to load media file');
@@ -275,6 +281,8 @@ const Alerts = () => {
               src={viewingImage.url}
               name={viewingImage.name}
               isVideo={viewingImage.isVideo}
+              cameraId={viewingImage.cameraId}
+              videoPath={viewingImage.videoPath}
             />
           </div>
         </div>

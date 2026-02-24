@@ -1,15 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { FaceDetector, FilesetResolver } from '@mediapipe/tasks-vision';
+import { videoService } from '../services/videoService';
 
 const WASM_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm';
 const FACE_MODEL =
   'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite';
 
 const FACE_BORDER_COLOR = '#00e676';
+const ALLOWED_PERSON_BORDER_COLOR = '#00e676';
+const ALLOWED_PERSON_FILL = 'rgba(0, 230, 118, 0.15)';
 const FACE_BORDER_WIDTH = 4;
 const DETECTION_INTERVAL_MS = 120;
 const DETECTION_PERSIST_MS = 500;
 const FACE_DETECTION_CONFIDENCE = 0.28;
+const FRAME_INTERVAL = 30; // must match backend extract_frames interval
 
 /**
  * Loads the MediaPipe Face Detector once (IMAGE mode) for reuse.
@@ -32,10 +36,44 @@ function detectionsWithBox(detections) {
 }
 
 /**
- * Alert media viewer with face detection overlay.
- * Draws a colored border around detected human faces when playing video or viewing image in the Alerts tab.
+ * Draw allowed-person matches (bbox + name) from server detections.
+ * bbox: [x, y, w, h] in source video coordinates.
  */
-const AlertMediaViewer = ({ src, name, isVideo, onClose }) => {
+function drawAllowedMatchesOnCanvas(matches, sourceWidth, sourceHeight, canvas) {
+  if (!canvas || !matches?.length) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const scaleX = canvas.width / sourceWidth;
+  const scaleY = canvas.height / sourceHeight;
+  for (const m of matches) {
+    const [x, y, w, h] = m.bbox || [];
+    if (w <= 0 || h <= 0) continue;
+    const sx = x * scaleX;
+    const sy = y * scaleY;
+    const sw = w * scaleX;
+    const sh = h * scaleY;
+    ctx.fillStyle = ALLOWED_PERSON_FILL;
+    ctx.fillRect(sx, sy, sw, sh);
+    ctx.strokeStyle = ALLOWED_PERSON_BORDER_COLOR;
+    ctx.lineWidth = FACE_BORDER_WIDTH;
+    ctx.strokeRect(sx, sy, sw, sh);
+    if (m.name) {
+      const labelY = Math.max(0, sy - 20);
+      ctx.font = 'bold 14px sans-serif';
+      const textW = ctx.measureText(m.name).width + 8;
+      ctx.fillStyle = ALLOWED_PERSON_BORDER_COLOR;
+      ctx.fillRect(sx, labelY, Math.min(textW, sw), 20);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(m.name, sx + 4, labelY + 14);
+    }
+  }
+}
+
+/**
+ * Alert media viewer with face detection overlay.
+ * When camera is restricted zone with allowed persons, draws name + color box for matched persons during video playback.
+ */
+const AlertMediaViewer = ({ src, name, isVideo, onClose, cameraId, videoPath }) => {
   const containerRef = useRef(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -47,15 +85,47 @@ const AlertMediaViewer = ({ src, name, isVideo, onClose }) => {
   const lastDetectionsRef = useRef([]);
   const lastDetectionsTimeRef = useRef(0);
   const lastSourceSizeRef = useRef({ w: 0, h: 0 });
+  const allowedDetectionsRef = useRef(null);
 
   const [modelLoading, setModelLoading] = useState(true);
   const [modelError, setModelError] = useState('');
   const [faceDetector, setFaceDetector] = useState(null);
   const [faceCount, setFaceCount] = useState(null);
+  const [allowedDetections, setAllowedDetections] = useState(null);
 
   useEffect(() => {
     setFaceCount(null);
   }, [src]);
+
+  // Fetch allowed-person detections for restricted-zone playback overlay
+  useEffect(() => {
+    if (!isVideo || !cameraId || !videoPath) {
+      setAllowedDetections(null);
+      return;
+    }
+    let cancelled = false;
+    videoService
+      .getDetections(cameraId, videoPath)
+      .then((data) => {
+        if (!cancelled && data?.frames && Object.keys(data.frames).length > 0) {
+          allowedDetectionsRef.current = data;
+          setAllowedDetections(data);
+        } else {
+          allowedDetectionsRef.current = null;
+          setAllowedDetections(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          allowedDetectionsRef.current = null;
+          setAllowedDetections(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+      allowedDetectionsRef.current = null;
+    };
+  }, [isVideo, cameraId, videoPath]);
 
   useEffect(() => {
     let cancelled = false;
@@ -129,7 +199,7 @@ const AlertMediaViewer = ({ src, name, isVideo, onClose }) => {
   }, []);
 
   useEffect(() => {
-    if (!isVideo || !faceDetector || !src) return;
+    if (!isVideo || !src) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
@@ -138,8 +208,33 @@ const AlertMediaViewer = ({ src, name, isVideo, onClose }) => {
       const v = videoRef.current;
       const displayCanvas = canvasRef.current;
       const detector = detectorRef.current;
-      if (!v || !displayCanvas || !detector) return;
+      if (!v || !displayCanvas) return;
       if (v.readyState < 2 || v.videoWidth === 0 || v.videoHeight === 0) {
+        rafRef.current = requestAnimationFrame(runDetection);
+        return;
+      }
+      const sw = v.videoWidth;
+      const sh = v.videoHeight;
+
+      // If we have server-side allowed-person detections, use them for overlay (restricted zone + names)
+      const allowed = allowedDetectionsRef.current;
+      if (allowed?.fps != null && allowed?.frames && typeof allowed.frames === 'object') {
+        const currentFrame = Math.round(v.currentTime * allowed.fps);
+        const frameKey = String(Math.round(currentFrame / FRAME_INTERVAL) * FRAME_INTERVAL);
+        const matches = allowed.frames[frameKey];
+        displayCanvas.getContext('2d')?.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
+        if (matches?.length) {
+          setFaceCount(matches.length);
+          drawAllowedMatchesOnCanvas(matches, sw, sh, displayCanvas);
+        } else {
+          setFaceCount(0);
+        }
+        rafRef.current = requestAnimationFrame(runDetection);
+        return;
+      }
+
+      // Otherwise use client-side face detection (MediaPipe)
+      if (!detector) {
         rafRef.current = requestAnimationFrame(runDetection);
         return;
       }
@@ -156,8 +251,6 @@ const AlertMediaViewer = ({ src, name, isVideo, onClose }) => {
         const ctx = offscreen.getContext('2d');
         if (ctx) {
           ctx.drawImage(v, 0, 0, offscreen.width, offscreen.height);
-          const sw = offscreen.width;
-          const sh = offscreen.height;
           try {
             const result = detector.detect(offscreen);
             let detections = detectionsWithBox(result?.detections);
@@ -231,7 +324,7 @@ const AlertMediaViewer = ({ src, name, isVideo, onClose }) => {
       video.removeEventListener('loadedmetadata', alignCanvasToVideo);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [isVideo, faceDetector, src, drawFacesOnCanvas, alignCanvasToVideo]);
+  }, [isVideo, faceDetector, src, cameraId, videoPath, drawFacesOnCanvas, alignCanvasToVideo]);
 
   useEffect(() => {
     if (isVideo || !faceDetector || !src) return;
@@ -275,7 +368,10 @@ const AlertMediaViewer = ({ src, name, isVideo, onClose }) => {
         )}
         {!modelLoading && !modelError && isVideo && (
           <p className="text-xs text-gray-500 mt-1">
-            Play the video to see face borders. {faceCount != null && `Faces detected: ${faceCount}`}
+            {allowedDetections
+              ? 'Playing: allowed persons (name + box) shown when matched.'
+              : 'Play the video to see face borders.'}
+            {faceCount != null && ` ${faceCount > 0 ? `Detected: ${faceCount}` : ''}`}
           </p>
         )}
       </div>
@@ -291,7 +387,7 @@ const AlertMediaViewer = ({ src, name, isVideo, onClose }) => {
             >
               Your browser does not support the video tag.
             </video>
-            {faceDetector && (
+            {(faceDetector || (cameraId && videoPath)) && (
               <canvas
                 ref={canvasRef}
                 className="absolute pointer-events-none z-10"
