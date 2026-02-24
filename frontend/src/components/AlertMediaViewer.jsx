@@ -6,9 +6,10 @@ const FACE_MODEL =
   'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite';
 
 const FACE_BORDER_COLOR = '#00e676';
-const FACE_BORDER_WIDTH = 3;
+const FACE_BORDER_WIDTH = 4;
 const DETECTION_INTERVAL_MS = 120;
 const DETECTION_PERSIST_MS = 500;
+const FACE_DETECTION_CONFIDENCE = 0.28;
 
 /**
  * Loads the MediaPipe Face Detector once (IMAGE mode) for reuse.
@@ -20,10 +21,14 @@ async function getFaceDetector() {
     cachedDetector = await FaceDetector.createFromOptions(vision, {
       baseOptions: { modelAssetPath: FACE_MODEL },
       runningMode: 'IMAGE',
-      minDetectionConfidence: 0.35,
+      minDetectionConfidence: FACE_DETECTION_CONFIDENCE,
     });
   }
   return cachedDetector;
+}
+
+function detectionsWithBox(detections) {
+  return (detections ?? []).filter((d) => d.boundingBox);
 }
 
 /**
@@ -155,7 +160,8 @@ const AlertMediaViewer = ({ src, name, isVideo, onClose }) => {
           const sh = offscreen.height;
           try {
             const result = detector.detect(offscreen);
-            const detections = result?.detections ?? [];
+            let detections = detectionsWithBox(result?.detections);
+
             if (detections.length > 0) {
               lastDetectionsRef.current = detections;
               lastDetectionsTimeRef.current = now;
@@ -244,7 +250,7 @@ const AlertMediaViewer = ({ src, name, isVideo, onClose }) => {
       canvas.style.height = displayH + 'px';
       try {
         const result = faceDetector.detect(img);
-        const detections = result?.detections ?? [];
+        const detections = detectionsWithBox(result?.detections);
         setFaceCount(detections.length);
         drawFacesOnCanvas(detections, naturalW, naturalH, canvas);
       } catch (e) {
