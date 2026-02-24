@@ -83,6 +83,9 @@ class Config:
     
     # CORS Configuration
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
+    # Frontend base URL (for password reset links in email). Defaults to first CORS origin.
+    _cors_list = os.getenv('CORS_ORIGINS', 'http://localhost:3000').strip().split(',')
+    FRONTEND_URL = os.getenv('FRONTEND_URL', _cors_list[0].strip() if _cors_list else 'http://localhost:3000')
     
     # Email Configuration
     MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtp.gmail.com')

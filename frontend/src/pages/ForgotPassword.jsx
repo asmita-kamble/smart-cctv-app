@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { authService } from '../services/authService';
 
 const ForgotPassword = () => {
@@ -7,8 +7,6 @@ const ForgotPassword = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [resetToken, setResetToken] = useState('');
-  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,14 +23,7 @@ const ForgotPassword = () => {
     try {
       const result = await authService.forgotPassword(email);
       setLoading(false);
-      
-      // In development, show the token. In production, this would be sent via email
-      if (result.reset_token) {
-        setResetToken(result.reset_token);
-        setSuccess('Password reset token generated successfully. Please use it to reset your password.');
-      } else {
-        setSuccess(result.message || 'If an account with that email exists, a password reset link has been sent.');
-      }
+      setSuccess(result.message || 'If an account with that email exists, a password reset link has been sent. Please check your email and spam folder.');
     } catch (error) {
       setLoading(false);
       const errorMsg = error.response?.data?.error || 
@@ -40,12 +31,6 @@ const ForgotPassword = () => {
                       error.message || 
                       'Failed to request password reset';
       setError(errorMsg);
-    }
-  };
-
-  const handleResetClick = () => {
-    if (resetToken) {
-      navigate(`/reset-password?token=${resetToken}`);
     }
   };
 
@@ -102,21 +87,6 @@ const ForgotPassword = () => {
           {success && (
             <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
               {success}
-              {resetToken && (
-                <div className="mt-4">
-                  <p className="text-sm font-semibold mb-2">Reset Token (Development Only):</p>
-                  <div className="bg-gray-100 p-3 rounded break-all text-xs font-mono mb-3">
-                    {resetToken}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleResetClick}
-                    className="w-full py-2 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                  >
-                    Reset Password
-                  </button>
-                </div>
-              )}
             </div>
           )}
           

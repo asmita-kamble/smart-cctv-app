@@ -4,11 +4,13 @@ Authentication service for user login, registration, and JWT token management.
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional, Dict
+from flask import current_app
 from flask_jwt_extended import create_access_token
 from app.repositories.user_repository import UserRepository
 from app.models.user import User
 from app.utils.validators import validate_email, validate_password
 from app.utils.database import db
+from app.services.email_service import EmailService
 
 
 class AuthService:
@@ -137,12 +139,19 @@ class AuthService:
         user.reset_token_expires = reset_token_expires
         db.session.commit()
         
-        # In production, send email with reset link
-        # For now, return token in response (for development/testing)
+        # Send password reset email with link
+        frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
+        reset_url = f"{frontend_url}/reset-password?token={reset_token}"
+        email_result, email_status = EmailService.send_password_reset_email(
+            user_email=user.email,
+            reset_token=reset_token,
+            reset_url=reset_url
+        )
+        if email_status != 200:
+            print(f"Failed to send password reset email: {email_result.get('error', 'Unknown error')}")
+            # Don't reveal user existence; return same message as when user not found
         return {
-            'message': 'Password reset token generated successfully',
-            'reset_token': reset_token,  # Remove this in production, send via email instead
-            'expires_at': reset_token_expires.isoformat()
+            'message': 'If an account with that email exists, a password reset link has been sent. Please check your email.'
         }, 200
     
     @staticmethod
