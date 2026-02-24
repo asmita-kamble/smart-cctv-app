@@ -99,9 +99,9 @@ const Cameras = () => {
         // Upload new allowed person images if any
         let successCount = 0;
         if (allowedPersonImages.length > 0) {
-          for (const image of allowedPersonImages) {
+          for (const item of allowedPersonImages) {
             try {
-              await cameraService.uploadAllowedPersonImage(editingCamera.id, image);
+              await cameraService.uploadAllowedPersonImage(editingCamera.id, item.file, (item.name || '').trim());
               successCount++;
             } catch (err) {
               console.error('Failed to upload allowed person image:', err);
@@ -137,9 +137,9 @@ const Cameras = () => {
         // Upload allowed person images if any
         let successCount = 0;
         if (allowedPersonImages.length > 0) {
-          for (const image of allowedPersonImages) {
+          for (const item of allowedPersonImages) {
             try {
-              await cameraService.uploadAllowedPersonImage(cameraId, image);
+              await cameraService.uploadAllowedPersonImage(cameraId, item.file, (item.name || '').trim());
               successCount++;
             } catch (err) {
               console.error('Failed to upload allowed person image:', err);
@@ -320,7 +320,14 @@ const Cameras = () => {
 
   const handleAllowedPersonImageChange = (e) => {
     const files = Array.from(e.target.files);
-    setAllowedPersonImages([...allowedPersonImages, ...files]);
+    const newEntries = files.map((file) => ({ file, name: '' }));
+    setAllowedPersonImages([...allowedPersonImages, ...newEntries]);
+  };
+
+  const updateAllowedPersonName = (index, name) => {
+    setAllowedPersonImages((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, name } : item))
+    );
   };
 
   const removeAllowedPersonImage = (index) => {
@@ -812,36 +819,48 @@ const Cameras = () => {
                   className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                 />
                 {allowedPersonImages.length > 0 && (
-                  <div className="mt-2 grid grid-cols-3 gap-2">
-                    {allowedPersonImages.map((image, index) => (
-                      <div key={index} className="relative group bg-gray-50 rounded border border-gray-200 overflow-hidden">
-                        <img
-                          src={URL.createObjectURL(image)}
-                          alt={image.name}
-                          className="w-full h-24 object-cover cursor-pointer"
-                          onClick={() => setViewingImage({ url: URL.createObjectURL(image), name: image.name })}
-                        />
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity flex items-center justify-center">
-                          <button
-                            type="button"
-                            onClick={() => setViewingImage({ url: URL.createObjectURL(image), name: image.name })}
-                            className="opacity-0 group-hover:opacity-100 bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 transition-opacity mr-1"
-                          >
-                            View
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removeAllowedPersonImage(index)}
-                            className="opacity-0 group-hover:opacity-100 bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700 transition-opacity"
-                          >
-                            Remove
-                          </button>
+                  <div className="mt-2 space-y-3">
+                    <p className="text-sm text-gray-600">Enter the person&apos;s name for each image below:</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {allowedPersonImages.map((item, index) => (
+                        <div key={index} className="relative group bg-gray-50 rounded-lg border border-gray-200 p-2">
+                          <div className="relative rounded overflow-hidden bg-gray-100">
+                            <img
+                              src={URL.createObjectURL(item.file)}
+                              alt={item.name || item.file.name}
+                              className="w-full h-28 object-cover cursor-pointer"
+                              onClick={() => setViewingImage({ url: URL.createObjectURL(item.file), name: item.name || item.file.name })}
+                            />
+                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setViewingImage({ url: URL.createObjectURL(item.file), name: item.name || item.file.name })}
+                                className="opacity-0 group-hover:opacity-100 bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 transition-opacity"
+                              >
+                                View
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeAllowedPersonImage(index)}
+                                className="opacity-0 group-hover:opacity-100 bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700 transition-opacity"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                          <label className="block text-sm font-medium text-gray-700 mt-2 mb-1">
+                            Person name
+                          </label>
+                          <input
+                            type="text"
+                            value={item.name}
+                            onChange={(e) => updateAllowedPersonName(index, e.target.value)}
+                            placeholder="e.g. John Doe"
+                            className="w-full text-sm text-gray-800 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
                         </div>
-                        <p className="text-xs text-gray-600 truncate px-1 py-0.5 bg-white bg-opacity-75">
-                          {image.name}
-                        </p>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
                 {editingCamera && existingAllowedPersons.length > 0 && (
