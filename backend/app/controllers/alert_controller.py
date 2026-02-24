@@ -3,6 +3,7 @@ Alert controller for managing security alerts.
 """
 from flask import Blueprint, request, jsonify, send_from_directory
 from app.services.alert_service import AlertService
+from app.services.email_service import EmailService
 from app.repositories.alert_repository import AlertRepository
 from app.repositories.camera_repository import CameraRepository
 from app.middleware.auth_middleware import require_auth, require_admin
@@ -70,6 +71,21 @@ def resolve_alert(alert_id, current_user):
 def get_alert_statistics(current_user):
     """Get alert statistics for dashboard (admin only)."""
     result, status_code = AlertService.get_alert_statistics()
+    return jsonify(result), status_code
+
+
+@alert_bp.route('/test-email', methods=['POST'])
+@require_auth
+@require_admin
+def test_alert_email(current_user):
+    """Send a test alert email to the current user (admin only). Verifies SMTP config."""
+    result, status_code = EmailService.send_alert_notification(
+        alert_type='Test Alert',
+        message='This is a test email to verify alert email delivery.',
+        severity='low',
+        camera_name='Test Camera',
+        recipient_emails=[current_user.email]
+    )
     return jsonify(result), status_code
 
 

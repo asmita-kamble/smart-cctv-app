@@ -7,6 +7,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: smart-cctv-backend
+    env_file:
+      - .env
     environment:
       # Flask Configuration
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
@@ -36,6 +38,15 @@ services:
       # Upload Configuration
       UPLOAD_FOLDER: /app/uploads
       MAX_CONTENT_LENGTH: ${MAX_CONTENT_LENGTH:-1073741824}
+      # Email (for alert notifications; values from .env)
+      MAIL_SERVER: ${MAIL_SERVER:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USE_TLS: ${MAIL_USE_TLS:-True}
+      MAIL_USE_SSL: ${MAIL_USE_SSL:-False}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_DEFAULT_SENDER: ${MAIL_DEFAULT_SENDER:-}
+      MAIL_SUPPRESS_SEND: ${MAIL_SUPPRESS_SEND:-False}
     volumes:
       - ./backend/uploads:/app/uploads
       - ./uploads:/app/uploads

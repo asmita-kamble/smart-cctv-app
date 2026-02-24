@@ -3,9 +3,15 @@ Configuration management for the Smart CCTV application.
 Handles environment variables and application settings.
 """
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from project root (parent of backend/) so it works when run from backend/ or repo root
+_backend_dir = Path(__file__).resolve().parent
+_project_root = _backend_dir.parent.parent  # app/config.py -> app -> backend -> project root
+_env_path = _project_root / '.env'
+load_dotenv(_env_path)
+load_dotenv()  # Also load from cwd for overrides
 
 
 class Config:
