@@ -14,7 +14,6 @@ from app.services.activity_detection_service import ActivityDetectionService
 from app.services.alert_rules_service import AlertRulesService
 from app.services.object_detection_service import ObjectDetectionService
 from app.services.camera_calibration_service import CameraCalibrationService
-from app.repositories.activity_repository import ActivityRepository
 from app.repositories.camera_repository import CameraRepository
 from app.repositories.allowed_person_repository import AllowedPersonRepository
 from app.services.alert_service import AlertService
@@ -357,23 +356,7 @@ class VideoProcessingService:
                         print(f"Frame {frame_num}: Error creating suspicious activity alert: {str(e)}")
                         import traceback
                         traceback.print_exc()
-                    
-                    # Log activity
-                    try:
-                        activity_details = suspicious_result.get('details', {})
-                        activity_details['video_path'] = video_path
-                        activity_details['motion_percentage'] = motion_percentage
-                        # Create description with activity type and motion info for logging
-                        description = f"Suspicious activity: {activity_type}" + (f" (motion: {motion_percentage:.1f}%)" if motion_percentage > 0 else "")
-                        ActivityRepository.create(
-                            camera_id=camera_id,
-                            activity_type=activity_type,
-                            description=description,
-                            confidence_score=confidence,
-                            metadata=json.dumps(activity_details)
-                        )
-                    except Exception as e:
-                        print(f"Frame {frame_num}: Error creating activity log: {str(e)}")
+                    # Activities are only for uploads (video/image); detection events are logged as Alerts only.
                 
                 # Apply alert rules (with error handling)
                 # Update alert rules service to use calibrated pixels_per_meter
@@ -736,24 +719,7 @@ class VideoProcessingService:
                 traceback.print_exc()
                 results['warnings'].append(f'Alert rules analysis error: {str(rules_error)}')
             
-            # Activity detection (for images, we can check for suspicious objects/patterns)
-            # For now, we'll create a basic activity log
-            if results['faces_detected'] > 0 or results['mask_violations'] > 0:
-                try:
-                    ActivityRepository.create(
-                        camera_id=camera_id,
-                        activity_type='image_analyzed',
-                        description=f'Image analyzed: {results["faces_detected"]} faces, {results["mask_violations"]} mask violations',
-                        confidence_score=0.8,
-                        metadata=json.dumps({
-                            'image_path': image_path,
-                            'faces_detected': results['faces_detected'],
-                            'mask_violations': results['mask_violations']
-                        })
-                    )
-                except Exception as e:
-                    print(f"Error creating activity log: {str(e)}")
-                    results['warnings'].append(f'Activity log error: {str(e)}')
+            # Activities for images are created on upload in the video controller (image_uploaded), not here.
         
         except Exception as e:
             print(f"Image processing exception: {str(e)}")

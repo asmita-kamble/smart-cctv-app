@@ -5,6 +5,7 @@ from flask import Blueprint, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from app.services.video_processing_service import VideoProcessingService
 from app.repositories.camera_repository import CameraRepository
+from app.repositories.activity_repository import ActivityRepository
 from app.middleware.auth_middleware import require_auth
 from app.utils.validators import validate_video_file, validate_image_file
 from app.config import Config
@@ -47,9 +48,26 @@ def upload_video(current_user):
         # Save video
         filename = secure_filename(file.filename)
         video_path = video_service.save_video(file, filename)
-        
+        file_size = os.path.getsize(video_path) if os.path.exists(video_path) else None
         # Process video (this can be done asynchronously in production)
         results, status_code = video_service.process_video(video_path, camera_id)
+        
+        # Always log video upload as activity (after processing completes, so DB session is stable)
+        try:
+            ActivityRepository.create(
+                camera_id=camera_id,
+                activity_type='video_uploaded',
+                description=f'Video uploaded: {filename}',
+                confidence_score=None,
+                metadata=json.dumps({
+                    'video_path': video_path,
+                    'filename': filename,
+                    'file_size_bytes': file_size,
+                    'file_size_mb': round(file_size / (1024 * 1024), 2) if file_size else None
+                })
+            )
+        except Exception as e:
+            print(f"Activity log (video upload) failed: {e}")
         
         if status_code == 200:
             return jsonify({
@@ -128,7 +146,23 @@ def upload_image(current_user):
         # Save image
         filename = secure_filename(file.filename)
         image_path = video_service.save_image(file, filename)
-        
+        file_size = os.path.getsize(image_path) if os.path.exists(image_path) else None
+        # Log upload as activity (upload info only, not detection data)
+        try:
+            ActivityRepository.create(
+                camera_id=camera_id,
+                activity_type='image_uploaded',
+                description=f'Image uploaded: {filename}',
+                confidence_score=None,
+                metadata=json.dumps({
+                    'image_path': image_path,
+                    'filename': filename,
+                    'file_size_bytes': file_size,
+                    'file_size_mb': round(file_size / (1024 * 1024), 2) if file_size else None
+                })
+            )
+        except Exception as e:
+            print(f"Activity log (image upload) failed: {e}")
         # Process image
         results, status_code = video_service.process_image(image_path, camera_id)
         

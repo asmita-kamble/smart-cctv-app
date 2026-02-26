@@ -1,8 +1,9 @@
 """
-Activity controller for managing detected activities.
+Activity controller for managing activities (upload records only).
+Detection events (suspicious_activity, etc.) are in Alerts, not Activities.
 """
 from flask import Blueprint, request, jsonify, send_from_directory
-from app.repositories.activity_repository import ActivityRepository
+from app.repositories.activity_repository import ActivityRepository, UPLOAD_ACTIVITY_TYPES
 from app.repositories.camera_repository import CameraRepository
 from app.middleware.auth_middleware import require_auth
 from app.config import Config
@@ -12,10 +13,15 @@ import json
 activity_bp = Blueprint('activity', __name__, url_prefix='/api/activities')
 
 
+def _filter_upload_activities(activities):
+    """Ensure only video_uploaded/image_uploaded activities are returned (safety filter)."""
+    return [a for a in activities if getattr(a, 'activity_type', None) in UPLOAD_ACTIVITY_TYPES]
+
+
 @activity_bp.route('', methods=['GET'])
 @require_auth
 def get_activities(current_user):
-    """Get activities (filtered by user's cameras unless admin)."""
+    """Get activities (uploads only: video_uploaded, image_uploaded). Filtered by user's cameras unless admin."""
     camera_id = request.args.get('camera_id', type=int)
     activity_type = request.args.get('activity_type')
     limit = request.args.get('limit', type=int, default=100)
@@ -37,6 +43,9 @@ def get_activities(current_user):
         activities = ActivityRepository.find_by_type(activity_type, limit, offset)
     else:
         activities = ActivityRepository.find_recent(limit, offset)
+    
+    # Safety: only return upload activities (exclude any detection-based records)
+    activities = _filter_upload_activities(activities)
     
     return jsonify({
         'activities': [activity.to_dict() for activity in activities],

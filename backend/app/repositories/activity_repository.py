@@ -8,6 +8,10 @@ from app.models.activity import Activity
 from app.utils.database import db
 
 
+# Activity list shows only uploads (video/image). Detection events are in Alerts.
+UPLOAD_ACTIVITY_TYPES = ('video_uploaded', 'image_uploaded')
+
+
 class ActivityRepository:
     """Repository for Activity entity operations."""
     
@@ -48,15 +52,20 @@ class ActivityRepository:
     
     @staticmethod
     def find_by_camera_id(camera_id: int, limit: int = None, offset: int = 0) -> List[Activity]:
-        """Find activities for a specific camera."""
-        query = Activity.query.filter_by(camera_id=camera_id).order_by(Activity.timestamp.desc())
+        """Find activities for a specific camera (uploads only)."""
+        query = Activity.query.filter(
+            Activity.camera_id == camera_id,
+            Activity.activity_type.in_(UPLOAD_ACTIVITY_TYPES)
+        ).order_by(Activity.timestamp.desc())
         if limit:
             query = query.limit(limit).offset(offset)
         return query.all()
     
     @staticmethod
     def find_by_type(activity_type: str, limit: int = None, offset: int = 0) -> List[Activity]:
-        """Find activities by type."""
+        """Find activities by type (only upload types returned)."""
+        if activity_type not in UPLOAD_ACTIVITY_TYPES:
+            return []
         query = Activity.query.filter_by(activity_type=activity_type).order_by(Activity.timestamp.desc())
         if limit:
             query = query.limit(limit).offset(offset)
@@ -64,8 +73,10 @@ class ActivityRepository:
     
     @staticmethod
     def find_recent(limit: int = 100, offset: int = 0) -> List[Activity]:
-        """Find recent activities."""
-        query = Activity.query.order_by(Activity.timestamp.desc())
+        """Find recent activities (uploads only)."""
+        query = Activity.query.filter(
+            Activity.activity_type.in_(UPLOAD_ACTIVITY_TYPES)
+        ).order_by(Activity.timestamp.desc())
         if limit:
             query = query.limit(limit).offset(offset)
         return query.all()
@@ -73,10 +84,11 @@ class ActivityRepository:
     @staticmethod
     def find_by_date_range(start_date: datetime, end_date: datetime, 
                           limit: int = None, offset: int = 0) -> List[Activity]:
-        """Find activities within a date range."""
+        """Find activities within a date range (uploads only)."""
         query = Activity.query.filter(
             Activity.timestamp >= start_date,
-            Activity.timestamp <= end_date
+            Activity.timestamp <= end_date,
+            Activity.activity_type.in_(UPLOAD_ACTIVITY_TYPES)
         ).order_by(Activity.timestamp.desc())
         if limit:
             query = query.limit(limit).offset(offset)
@@ -85,7 +97,9 @@ class ActivityRepository:
     @staticmethod
     def find_by_camera_and_type(camera_id: int, activity_type: str, 
                                 limit: int = None, offset: int = 0) -> List[Activity]:
-        """Find activities by camera and type."""
+        """Find activities by camera and type (only upload types)."""
+        if activity_type not in UPLOAD_ACTIVITY_TYPES:
+            return []
         query = Activity.query.filter_by(
             camera_id=camera_id,
             activity_type=activity_type
@@ -112,6 +126,9 @@ class ActivityRepository:
     
     @staticmethod
     def count_by_camera_id(camera_id: int) -> int:
-        """Count activities for a camera."""
-        return Activity.query.filter_by(camera_id=camera_id).count()
+        """Count activities for a camera (uploads only)."""
+        return Activity.query.filter(
+            Activity.camera_id == camera_id,
+            Activity.activity_type.in_(UPLOAD_ACTIVITY_TYPES)
+        ).count()
 
