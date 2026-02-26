@@ -8,7 +8,7 @@ from flask import current_app
 from flask_jwt_extended import create_access_token
 from app.repositories.user_repository import UserRepository
 from app.models.user import User
-from app.utils.validators import validate_email, validate_password
+from app.utils.validators import validate_email, validate_password, normalize_email
 from app.utils.database import db
 from app.services.email_service import EmailService
 
@@ -30,31 +30,47 @@ class AuthService:
         Returns:
             Dictionary with user data and token, or error message
         """
-        # Validate email
+        # Normalize and validate email
+        email = normalize_email(email)
+        if not email:
+            return {'error': 'Email is required'}, 400
         if not validate_email(email):
-            return {'error': 'Invalid email format'}, 400
+            return {'error': 'Invalid email format. Please enter a valid email address.'}, 400
         
         # Validate password
         is_valid, message = validate_password(password)
         if not is_valid:
             return {'error': message}, 400
         
-        # Check if user exists
+        # Check if user exists (use normalized email)
         if UserRepository.exists_by_email(email):
             return {'error': 'Email already registered'}, 409
         
         if UserRepository.exists_by_username(username):
             return {'error': 'Username already taken'}, 409
         
-        # Create user
+        # Create user (email_verified=False until they click the link)
         try:
             user = UserRepository.create(email, username, password, role)
-            access_token = create_access_token(identity=str(user.id))
-            
+            # Generate email verification token
+            verification_token = secrets.token_urlsafe(32)
+            verification_expires = datetime.utcnow() + timedelta(hours=24)
+            user.email_verification_token = verification_token
+            user.email_verification_expires = verification_expires
+            db.session.commit()
+            # Send verification email
+            frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
+            verification_url = f"{frontend_url}/verify-email?token={verification_token}"
+            email_result, email_status = EmailService.send_verification_email(
+                user_email=user.email,
+                username=user.username,
+                verification_url=verification_url
+            )
+            if email_status != 200:
+                print(f"Failed to send verification email: {email_result.get('error', 'Unknown error')}")
             return {
-                'message': 'User registered successfully',
+                'message': 'Registration successful. Please check your email to verify your account before logging in.',
                 'user': user.to_dict(),
-                'access_token': access_token
             }, 201
         except Exception as e:
             return {'error': f'Registration failed: {str(e)}'}, 500
@@ -71,6 +87,10 @@ class AuthService:
         Returns:
             Dictionary with user data and token, or error message
         """
+        # Normalize email for lookup
+        email = normalize_email(email)
+        if not email:
+            return {'error': 'Email is required'}, 400
         # Find user
         user = UserRepository.find_by_email(email)
         if not user:
@@ -79,6 +99,10 @@ class AuthService:
         # Check password
         if not user.check_password(password):
             return {'error': 'Invalid email or password'}, 401
+        
+        # Check if email is verified
+        if not getattr(user, 'email_verified', True):
+            return {'error': 'Please verify your email before logging in. Check your inbox for the verification link.'}, 403
         
         # Check if user is active
         if not user.is_active:
@@ -114,8 +138,9 @@ class AuthService:
         Returns:
             Dictionary with success message and reset token, or error message
         """
-        # Validate email
-        if not validate_email(email):
+        # Normalize and validate email
+        email = normalize_email(email)
+        if not email or not validate_email(email):
             return {'error': 'Invalid email format'}, 400
         
         # Find user
@@ -154,6 +179,30 @@ class AuthService:
             'message': 'If an account with that email exists, a password reset link has been sent. Please check your email.'
         }, 200
     
+    @staticmethod
+    def verify_email(token: str) -> Dict:
+        """
+        Verify user email using the token sent to their inbox.
+        
+        Args:
+            token: Email verification token from the link
+            
+        Returns:
+            Dictionary with success message, or error message
+        """
+        if not token or not token.strip():
+            return {'error': 'Verification token is required'}, 400
+        user = UserRepository.find_by_email_verification_token(token.strip())
+        if not user:
+            return {'error': 'Invalid or expired verification link'}, 400
+        if user.email_verification_expires and user.email_verification_expires < datetime.utcnow():
+            user.email_verification_token = None
+            user.email_verification_expires = None
+            db.session.commit()
+            return {'error': 'Verification link has expired. Please request a new one from the login page.'}, 400
+        UserRepository.set_email_verified(user)
+        return {'message': 'Email verified successfully. You can now log in.'}, 200
+
     @staticmethod
     def reset_password(token: str, new_password: str) -> Dict:
         """

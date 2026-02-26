@@ -29,6 +29,9 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='user')  # 'admin' or 'user'
     is_active = db.Column(db.Boolean, default=True, nullable=False)
+    email_verified = db.Column(db.Boolean, default=False, nullable=False)
+    email_verification_token = db.Column(db.String(255), nullable=True, index=True)
+    email_verification_expires = db.Column(db.DateTime, nullable=True)
     reset_token = db.Column(db.String(255), nullable=True, index=True)
     reset_token_expires = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -57,6 +60,7 @@ class User(db.Model):
             'username': self.username,
             'role': self.role,
             'is_active': self.is_active,
+            'email_verified': getattr(self, 'email_verified', False),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

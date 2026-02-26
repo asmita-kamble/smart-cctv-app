@@ -80,6 +80,20 @@ class UserRepository:
         return User.query.filter_by(username=username).first() is not None
     
     @staticmethod
+    def find_by_email_verification_token(token: str) -> Optional[User]:
+        """Find user by email verification token."""
+        return User.query.filter_by(email_verification_token=token).first()
+
+    @staticmethod
+    def set_email_verified(user: User) -> User:
+        """Mark user email as verified and clear verification token."""
+        user.email_verified = True
+        user.email_verification_token = None
+        user.email_verification_expires = None
+        db.session.commit()
+        return user
+
+    @staticmethod
     def find_by_reset_token(token: str) -> Optional[User]:
         """Find user by reset token."""
         return User.query.filter_by(reset_token=token).first()

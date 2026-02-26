@@ -138,5 +138,10 @@ export const authService = {
       throw error;
     }
   },
+
+  verifyEmail: async (token) => {
+    const response = await api.post('/auth/verify-email', { token });
+    return response.data;
+  },
 };
 

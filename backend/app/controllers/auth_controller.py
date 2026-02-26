@@ -56,6 +56,21 @@ def login():
     return jsonify(result), status_code
 
 
+@auth_bp.route('/verify-email', methods=['GET', 'POST'])
+def verify_email():
+    """Verify user email using token from the verification link."""
+    token = None
+    if request.method == 'GET':
+        token = request.args.get('token')
+    else:
+        data = request.get_json() or {}
+        token = data.get('token')
+    if not token:
+        return jsonify({'error': 'Verification token is required'}), 400
+    result, status_code = AuthService.verify_email(token)
+    return jsonify(result), status_code
+
+
 @auth_bp.route('/me', methods=['GET'])
 @require_auth
 def get_current_user(current_user):

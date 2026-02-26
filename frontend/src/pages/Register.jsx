@@ -47,7 +47,8 @@ const Register = () => {
       setLoading(false);
 
       if (result.success) {
-        navigate('/login');
+        const msg = result.data?.message || 'Registration successful. Please check your email to verify your account.';
+        navigate('/login', { state: { message: msg } });
       } else {
         const errorMsg = result.error || 'Registration failed';
         console.error('Registration error:', errorMsg);

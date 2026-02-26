@@ -281,6 +281,76 @@ Thank you for using Smart CCTV System!
             body=plain_body,
             html=html_body
         )
+
+    @staticmethod
+    def send_verification_email(user_email: str, username: str, verification_url: str) -> Tuple[Dict, int]:
+        """
+        Send email verification link to new user.
+        
+        Args:
+            user_email: User's email address
+            username: Username
+            verification_url: Full URL for the user to click to verify (includes token)
+            
+        Returns:
+            Tuple of (result_dict, status_code)
+        """
+        subject = "Verify your email - Smart CCTV System"
+        plain_body = f"""
+Verify your email
+
+Hello {username},
+
+Thanks for signing up. Please verify your email by clicking the link below:
+
+{verification_url}
+
+This link will expire in 24 hours.
+
+If you did not create an account, please ignore this email.
+"""
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #28a745; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }}
+        .content {{ background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; }}
+        .button {{ display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Verify your email</h1>
+        </div>
+        <div class="content">
+            <p>Hello <strong>{username}</strong>,</p>
+            <p>Thanks for signing up. Please verify your email by clicking the button below:</p>
+            <p style="text-align: center;">
+                <a href="{verification_url}" class="button">Verify Email</a>
+            </p>
+            <p>Or copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; color: #007bff;">{verification_url}</p>
+            <p style="color: #666; font-size: 12px;">This link will expire in 24 hours.</p>
+            <p>If you did not create an account, please ignore this email.</p>
+        </div>
+        <div class="footer">
+            <p>This is an automated email from Smart CCTV System.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+        return EmailService.send_email(
+            to=user_email,
+            subject=subject,
+            body=plain_body,
+            html=html_body
+        )
     
     @staticmethod
     def send_password_reset_email(user_email: str, reset_token: str, reset_url: str) -> Tuple[Dict, int]:
