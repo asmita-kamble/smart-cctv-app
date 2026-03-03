@@ -47,9 +47,9 @@ services:
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       MAIL_DEFAULT_SENDER: ${MAIL_DEFAULT_SENDER:-}
       MAIL_SUPPRESS_SEND: ${MAIL_SUPPRESS_SEND:-False}
+    # Use named volume so uploads work on any host (no permission denied); optional bind mount to access files on host
     volumes:
-      - ./backend/uploads:/app/uploads
-      - ./uploads:/app/uploads
+      - smart-cctv-uploads:/app/uploads
     ports:
       - "${BACKEND_PORT:-5001}:5001"
     extra_hosts:
@@ -58,6 +58,8 @@ services:
     networks:
       - smart-cctv-network
     restart: unless-stopped
+    # Run as root so /app/uploads is always writable (avoids permission denied on any host)
+    user: "0:0"
 
   # Frontend React App
   frontend:
@@ -76,4 +78,7 @@ services:
 networks:
   smart-cctv-network:
     driver: bridge
+
+volumes:
+  smart-cctv-uploads:
 
