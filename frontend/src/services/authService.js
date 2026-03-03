@@ -143,5 +143,10 @@ export const authService = {
     const response = await api.post('/auth/verify-email', { token });
     return response.data;
   },
+
+  acceptInvite: async (token, password) => {
+    const response = await api.post('/auth/accept-invite', { token, password });
+    return response.data;
+  },
 };
 

@@ -107,3 +107,45 @@ class UserRepository:
         db.session.commit()
         return user
 
+    @staticmethod
+    def create_invited(email: str, username: str, role: str, temp_password: str, invite_token: str, invite_token_expires) -> User:
+        """Create a user as invited (email_verified=False until they accept)."""
+        user = User(email=email, username=username, role=role, email_verified=False)
+        user.set_password(temp_password)
+        user.invite_token = invite_token
+        user.invite_token_expires = invite_token_expires
+        db.session.add(user)
+        db.session.commit()
+        return user
+
+    @staticmethod
+    def find_by_invite_token(token: str) -> Optional[User]:
+        """Find user by invite token."""
+        return User.query.filter_by(invite_token=token).first()
+
+    @staticmethod
+    def set_active(user: User, active: bool) -> User:
+        """Set user active status (activate or deactivate)."""
+        user.is_active = active
+        db.session.commit()
+        return user
+
+    @staticmethod
+    def clear_invite_and_verify(user: User) -> User:
+        """Clear invite token and mark email as verified (after accept-invite)."""
+        user.invite_token = None
+        user.invite_token_expires = None
+        user.email_verified = True
+        db.session.commit()
+        return user
+
+    @staticmethod
+    def set_password_and_clear_invite(user: User, new_password: str) -> User:
+        """Set password and clear invite token (accept invite flow)."""
+        user.set_password(new_password)
+        user.invite_token = None
+        user.invite_token_expires = None
+        user.email_verified = True
+        db.session.commit()
+        return user
+

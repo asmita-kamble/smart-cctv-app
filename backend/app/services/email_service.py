@@ -423,3 +423,73 @@ This link will expire in 1 hour.
             html=html_body
         )
 
+    @staticmethod
+    def send_invite_email(user_email: str, username: str, invite_url: str, inviter_name: str, role: str) -> Tuple[Dict, int]:
+        """
+        Send invite email to invited user (set password link).
+
+        Args:
+            user_email: Invited user's email
+            username: Invited user's username
+            invite_url: Full URL for accept-invite (set password)
+            inviter_name: Name of admin who sent invite
+            role: Role they were invited as (user/admin)
+
+        Returns:
+            Tuple of (result_dict, status_code)
+        """
+        subject = "You're invited to Smart CCTV System"
+        role_label = "Administrator" if role == "admin" else "User"
+        plain_body = f"""
+You're invited to Smart CCTV System
+
+Hello {username},
+
+{inviter_name} has invited you to join Smart CCTV System as a {role_label}.
+
+Please set your password by clicking the link below:
+{invite_url}
+
+This link will expire in 7 days. If you did not expect this invite, you can ignore this email.
+"""
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #007bff; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }}
+        .content {{ background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; }}
+        .button {{ display: inline-block; padding: 12px 24px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>You're invited</h1>
+        </div>
+        <div class="content">
+            <p>Hello <strong>{username}</strong>,</p>
+            <p>{inviter_name} has invited you to join Smart CCTV System as a <strong>{role_label}</strong>.</p>
+            <p style="text-align: center;">
+                <a href="{invite_url}" class="button">Set your password</a>
+            </p>
+            <p>Or copy and paste this link: <span style="word-break: break-all; color: #007bff;">{invite_url}</span></p>
+            <p style="color: #666; font-size: 12px;">This link expires in 7 days.</p>
+        </div>
+        <div class="footer">
+            <p>This is an automated email from Smart CCTV System.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+        return EmailService.send_email(
+            to=user_email,
+            subject=subject,
+            body=plain_body,
+            html=html_body
+        )
+

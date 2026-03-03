@@ -7,11 +7,13 @@ import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import VerifyEmail from './pages/VerifyEmail';
+import AcceptInvite from './pages/AcceptInvite';
 import Dashboard from './pages/Dashboard';
 import Cameras from './pages/Cameras';
 import Alerts from './pages/Alerts';
 import Activities from './pages/Activities';
 import LiveFeed from './pages/LiveFeed';
+import UserManagement from './pages/UserManagement';
 
 function App() {
   return (
@@ -23,6 +25,7 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/accept-invite" element={<AcceptInvite />} />
           <Route
             path="/"
             element={
@@ -37,6 +40,7 @@ function App() {
             <Route path="alerts" element={<Alerts />} />
             <Route path="activities" element={<Activities />} />
             <Route path="live-feed" element={<LiveFeed />} />
+            <Route path="users" element={<ProtectedRoute requireAdmin><UserManagement /></ProtectedRoute>} />
           </Route>
         </Routes>
       </Router>

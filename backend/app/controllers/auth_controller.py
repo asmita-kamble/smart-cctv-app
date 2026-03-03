@@ -120,3 +120,20 @@ def reset_password():
     except Exception as e:
         return jsonify({'error': f'Reset password error: {str(e)}'}), 500
 
+
+@auth_bp.route('/accept-invite', methods=['POST'])
+def accept_invite():
+    """Accept invite: set password using token from invite email. No auth required."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        token = data.get('token')
+        password = data.get('password')
+        if not token or not password:
+            return jsonify({'error': 'Token and password are required'}), 400
+        result, status_code = AuthService.accept_invite(token, password)
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+

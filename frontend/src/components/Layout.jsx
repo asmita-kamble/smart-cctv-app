@@ -6,7 +6,7 @@ const Layout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/';
-  const hasBackground = ['/dashboard', '/', '/cameras', '/alerts', '/activities', '/live-feed'].includes(location.pathname);
+  const hasBackground = ['/dashboard', '/', '/cameras', '/alerts', '/activities', '/live-feed', '/users'].includes(location.pathname);
 
   const handleLogout = () => {
     logout();
@@ -53,6 +53,14 @@ const Layout = () => {
                 >
                   Activities
                 </Link>
+                {isAdmin && (
+                  <Link
+                    to="/users"
+                    className="border-transparent text-gray-300 hover:border-blue-400 hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors"
+                  >
+                    User Management
+                  </Link>
+                )}
               </div>
             </div>
             <div className="flex items-center">

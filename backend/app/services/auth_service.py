@@ -242,3 +242,37 @@ class AuthService:
         except Exception as e:
             return {'error': f'Password reset failed: {str(e)}'}, 500
 
+    @staticmethod
+    def accept_invite(token: str, new_password: str) -> Dict:
+        """
+        Accept an invite: set password using invite token and mark email verified.
+        No auth required (user does not have an account yet).
+
+        Args:
+            token: Invite token from email link
+            new_password: New password to set
+
+        Returns:
+            Tuple of (result_dict, status_code)
+        """
+        is_valid, message = validate_password(new_password)
+        if not is_valid:
+            return {'error': message}, 400
+        if not token or not token.strip():
+            return {'error': 'Invite token is required'}, 400
+
+        user = UserRepository.find_by_invite_token(token.strip())
+        if not user:
+            return {'error': 'Invalid or expired invite link'}, 400
+        if user.invite_token_expires and user.invite_token_expires < datetime.utcnow():
+            user.invite_token = None
+            user.invite_token_expires = None
+            db.session.commit()
+            return {'error': 'Invite link has expired'}, 400
+
+        try:
+            UserRepository.set_password_and_clear_invite(user, new_password)
+            return {'message': 'Password set successfully. You can now log in.'}, 200
+        except Exception as e:
+            return {'error': f'Failed to set password: {str(e)}'}, 500
+

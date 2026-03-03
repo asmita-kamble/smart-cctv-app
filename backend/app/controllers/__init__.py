@@ -6,6 +6,7 @@ from app.controllers.alert_controller import alert_bp
 from app.controllers.activity_controller import activity_bp
 from app.controllers.dashboard_controller import dashboard_bp
 from app.controllers.video_controller import video_bp
+from app.controllers.user_management_controller import users_bp
 
-__all__ = ['auth_bp', 'camera_bp', 'allowed_person_bp', 'alert_bp', 'activity_bp', 'dashboard_bp', 'video_bp']
+__all__ = ['auth_bp', 'camera_bp', 'allowed_person_bp', 'alert_bp', 'activity_bp', 'dashboard_bp', 'video_bp', 'users_bp']
 

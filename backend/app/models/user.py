@@ -34,6 +34,8 @@ class User(db.Model):
     email_verification_expires = db.Column(db.DateTime, nullable=True)
     reset_token = db.Column(db.String(255), nullable=True, index=True)
     reset_token_expires = db.Column(db.DateTime, nullable=True)
+    invite_token = db.Column(db.String(255), nullable=True, index=True)
+    invite_token_expires = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

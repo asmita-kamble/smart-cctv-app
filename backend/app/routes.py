@@ -8,7 +8,8 @@ from app.controllers import (
     alert_bp,
     activity_bp,
     dashboard_bp,
-    video_bp
+    video_bp,
+    users_bp,
 )
 
 
@@ -21,4 +22,5 @@ def register_routes(app):
     app.register_blueprint(activity_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(video_bp)
+    app.register_blueprint(users_bp)
 
