@@ -276,3 +276,56 @@ class AuthService:
         except Exception as e:
             return {'error': f'Failed to set password: {str(e)}'}, 500
 
+    @staticmethod
+    def update_profile(user: User, username: Optional[str] = None, email: Optional[str] = None) -> Dict:
+        """
+        Update current user's profile (username and/or email). User can only update their own info.
+        """
+        if username is not None:
+            username = username.strip() if isinstance(username, str) else ''
+            if not username:
+                return {'error': 'Username cannot be empty'}, 400
+            if len(username) > 80:
+                return {'error': 'Username is too long'}, 400
+            existing = UserRepository.find_by_username(username)
+            if existing and existing.id != user.id:
+                return {'error': 'Username already taken'}, 409
+            user.username = username
+        if email is not None:
+            email = normalize_email(email)
+            if not email:
+                return {'error': 'Email cannot be empty'}, 400
+            if not validate_email(email):
+                return {'error': 'Invalid email format'}, 400
+            existing = UserRepository.find_by_email(email)
+            if existing and existing.id != user.id:
+                return {'error': 'Email already in use'}, 409
+            user.email = email
+        if username is None and email is None:
+            return {'error': 'No fields to update'}, 400
+        try:
+            UserRepository.update(user)
+            return {'message': 'Profile updated successfully', 'user': user.to_dict()}, 200
+        except Exception as e:
+            db.session.rollback()
+            return {'error': f'Profile update failed: {str(e)}'}, 500
+
+    @staticmethod
+    def change_password(user: User, current_password: str, new_password: str) -> Dict:
+        """
+        Change password for the current user. Requires current password.
+        """
+        if not current_password:
+            return {'error': 'Current password is required'}, 400
+        if not user.check_password(current_password):
+            return {'error': 'Current password is incorrect'}, 401
+        is_valid, message = validate_password(new_password)
+        if not is_valid:
+            return {'error': message}, 400
+        try:
+            UserRepository.update_password(user, new_password)
+            return {'message': 'Password changed successfully'}, 200
+        except Exception as e:
+            db.session.rollback()
+            return {'error': f'Password change failed: {str(e)}'}, 500
+

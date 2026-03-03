@@ -104,6 +104,13 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const updateUser = (userData) => {
+    if (userData) {
+      setUser(userData);
+      localStorage.setItem('user', JSON.stringify(userData));
+    }
+  };
+
   const register = async (userData) => {
     try {
       console.log('AuthContext register - calling authService with:', userData);
@@ -129,6 +136,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     register,
+    updateUser,
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin',
   };

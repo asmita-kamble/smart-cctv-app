@@ -148,5 +148,18 @@ export const authService = {
     const response = await api.post('/auth/accept-invite', { token, password });
     return response.data;
   },
+
+  updateProfile: async (data) => {
+    const response = await api.post('/auth/profile', data);
+    return response.data;
+  },
+
+  changePassword: async (currentPassword, newPassword) => {
+    const response = await api.post('/auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+    return response.data;
+  },
 };
 

@@ -6,7 +6,7 @@ const Layout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/';
-  const hasBackground = ['/dashboard', '/', '/cameras', '/alerts', '/activities', '/live-feed', '/users'].includes(location.pathname);
+  const hasBackground = ['/dashboard', '/', '/cameras', '/alerts', '/activities', '/live-feed', '/users', '/profile'].includes(location.pathname);
 
   const handleLogout = () => {
     logout();
@@ -65,10 +65,13 @@ const Layout = () => {
                 )}
               </div>
             </div>
-            <div className="flex items-center">
-              <span className="text-sm text-gray-200 mr-4">
+            <div className="flex items-center space-x-4">
+              <Link
+                to="/profile"
+                className="text-sm text-gray-200 hover:text-white transition-colors"
+              >
                 {user?.username} ({user?.role})
-              </span>
+              </Link>
               <button
                 onClick={handleLogout}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"

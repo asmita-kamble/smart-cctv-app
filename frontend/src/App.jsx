@@ -14,6 +14,7 @@ import Alerts from './pages/Alerts';
 import Activities from './pages/Activities';
 import LiveFeed from './pages/LiveFeed';
 import UserManagement from './pages/UserManagement';
+import Profile from './pages/Profile';
 
 function App() {
   return (
@@ -40,6 +41,7 @@ function App() {
             <Route path="alerts" element={<Alerts />} />
             <Route path="activities" element={<Activities />} />
             <Route path="live-feed" element={<LiveFeed />} />
+            <Route path="profile" element={<Profile />} />
             <Route path="users" element={<ProtectedRoute requireAdmin><UserManagement /></ProtectedRoute>} />
           </Route>
         </Routes>

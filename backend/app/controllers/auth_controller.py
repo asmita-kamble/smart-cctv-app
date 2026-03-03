@@ -137,3 +137,39 @@ def accept_invite():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+@auth_bp.route('/profile', methods=['PATCH', 'POST'])
+@require_auth
+def update_profile(current_user):
+    """Update current user's profile (username and/or email)."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        username = data.get('username')
+        email = data.get('email')
+        result, status_code = AuthService.update_profile(current_user, username=username, email=email)
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@auth_bp.route('/change-password', methods=['POST'])
+@require_auth
+def change_password(current_user):
+    """Change current user's password. Requires current password."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        current_password = data.get('current_password')
+        new_password = data.get('new_password')
+        if not current_password or not new_password:
+            return jsonify({'error': 'Current password and new password are required'}), 400
+        result, status_code = AuthService.change_password(
+            current_user, current_password, new_password
+        )
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
