@@ -29,12 +29,14 @@ const Layout = () => {
                 >
                   Dashboard
                 </Link>
-                <Link
-                  to="/cameras"
-                  className="border-transparent text-gray-300 hover:border-blue-400 hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors"
-                >
-                  Cameras
-                </Link>
+                {isAdmin && (
+                  <Link
+                    to="/cameras"
+                    className="border-transparent text-gray-300 hover:border-blue-400 hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors"
+                  >
+                    Cameras
+                  </Link>
+                )}
                 <Link
                   to="/live-feed"
                   className="border-transparent text-gray-300 hover:border-blue-400 hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors"

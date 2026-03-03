@@ -14,8 +14,9 @@ camera_bp = Blueprint('camera', __name__, url_prefix='/api/cameras')
 
 @camera_bp.route('', methods=['POST'])
 @require_auth
+@require_admin
 def create_camera(current_user):
-    """Create a new camera."""
+    """Create a new camera (admin only)."""
     data = request.get_json()
     
     if not data:
@@ -101,15 +102,10 @@ def create_camera(current_user):
 @camera_bp.route('', methods=['GET'])
 @require_auth
 def get_cameras(current_user):
-    """Get cameras (all for admin, own for regular users)."""
+    """Get cameras. All authenticated users can list cameras (e.g. for Live Feed); only admins can create/edit."""
     limit = request.args.get('limit', type=int)
     offset = request.args.get('offset', type=int, default=0)
-    
-    if current_user.is_admin():
-        cameras = CameraRepository.find_all(limit, offset)
-    else:
-        cameras = CameraRepository.find_by_user_id(current_user.id, limit, offset)
-    
+    cameras = CameraRepository.find_all(limit, offset)
     return jsonify({
         'cameras': [camera.to_dict() for camera in cameras],
         'count': len(cameras)
@@ -119,15 +115,11 @@ def get_cameras(current_user):
 @camera_bp.route('/<int:camera_id>', methods=['GET'])
 @require_auth
 def get_camera(camera_id, current_user):
-    """Get camera by ID."""
+    """Get camera by ID. All authenticated users can view (cameras are added by admin, visible to all)."""
     camera = CameraRepository.find_by_id(camera_id)
     
     if not camera:
         return jsonify({'error': 'Camera not found'}), 404
-    
-    # Check access: admin or owner
-    if not current_user.is_admin() and camera.user_id != current_user.id:
-        return jsonify({'error': 'Access denied'}), 403
     
     return jsonify({'camera': camera.to_dict()}), 200
 
@@ -236,15 +228,11 @@ def delete_camera(camera_id, current_user):
 @camera_bp.route('/<int:camera_id>/stream/start', methods=['POST'])
 @require_auth
 def start_stream(camera_id, current_user):
-    """Start RTSP stream for a camera."""
+    """Start RTSP stream for a camera. Any authenticated user can view streams (Live Feed)."""
     camera = CameraRepository.find_by_id(camera_id)
     
     if not camera:
         return jsonify({'error': 'Camera not found'}), 404
-    
-    # Check access: admin or owner
-    if not current_user.is_admin() and camera.user_id != current_user.id:
-        return jsonify({'error': 'Access denied'}), 403
     
     if not camera.ip_address:
         return jsonify({'error': 'Camera IP address is required for streaming'}), 400
@@ -282,15 +270,11 @@ def start_stream(camera_id, current_user):
 @camera_bp.route('/<int:camera_id>/stream/stop', methods=['POST'])
 @require_auth
 def stop_stream(camera_id, current_user):
-    """Stop RTSP stream for a camera."""
+    """Stop RTSP stream for a camera. Any authenticated user can control stream (Live Feed)."""
     camera = CameraRepository.find_by_id(camera_id)
     
     if not camera:
         return jsonify({'error': 'Camera not found'}), 404
-    
-    # Check access: admin or owner
-    if not current_user.is_admin() and camera.user_id != current_user.id:
-        return jsonify({'error': 'Access denied'}), 403
     
     success = streaming_service.stop_stream(camera_id)
     
@@ -303,15 +287,11 @@ def stop_stream(camera_id, current_user):
 @camera_bp.route('/<int:camera_id>/stream/status', methods=['GET'])
 @require_auth
 def get_stream_status(camera_id, current_user):
-    """Get streaming status for a camera."""
+    """Get streaming status for a camera. Any authenticated user can view (Live Feed)."""
     camera = CameraRepository.find_by_id(camera_id)
     
     if not camera:
         return jsonify({'error': 'Camera not found'}), 404
-    
-    # Check access: admin or owner
-    if not current_user.is_admin() and camera.user_id != current_user.id:
-        return jsonify({'error': 'Access denied'}), 403
     
     is_active = streaming_service.is_stream_active(camera_id)
     
@@ -325,15 +305,11 @@ def get_stream_status(camera_id, current_user):
 @camera_bp.route('/<int:camera_id>/stream/playlist.m3u8', methods=['GET'])
 @require_auth
 def get_hls_playlist(camera_id, current_user):
-    """Serve HLS playlist file."""
+    """Serve HLS playlist file. Any authenticated user can view (Live Feed)."""
     camera = CameraRepository.find_by_id(camera_id)
     
     if not camera:
         return jsonify({'error': 'Camera not found'}), 404
-    
-    # Check access: admin or owner
-    if not current_user.is_admin() and camera.user_id != current_user.id:
-        return jsonify({'error': 'Access denied'}), 403
     
     playlist_path = streaming_service.get_hls_playlist_path(camera_id)
     
@@ -363,18 +339,19 @@ def get_hls_playlist(camera_id, current_user):
         with open(playlist_path, 'r') as f:
             content = f.read()
         
-        # Get base URL from request
+        # Get base URL and token (for auth on segment requests when using native HLS / query-string auth)
         base_url = request.url_root.rstrip('/')
-        
-        # Replace segment paths with absolute API endpoints
+        token = request.args.get('token', '')
+        token_suffix = f'?token={token}' if token else ''
+
+        # Replace segment paths with absolute API endpoints (include token so segment GETs are authenticated)
         lines = content.split('\n')
         modified_lines = []
         for line in lines:
             if line.endswith('.ts') and not line.startswith('http'):
                 # Convert relative path to absolute API endpoint
                 segment_name = os.path.basename(line.strip())
-                # Use absolute URL for segments
-                modified_lines.append(f'{base_url}api/cameras/{camera_id}/stream/segment/{segment_name}')
+                modified_lines.append(f'{base_url}api/cameras/{camera_id}/stream/segment/{segment_name}{token_suffix}')
             else:
                 modified_lines.append(line)
         
@@ -396,15 +373,11 @@ def get_hls_playlist(camera_id, current_user):
 @camera_bp.route('/<int:camera_id>/stream/segment/<segment_name>', methods=['GET'])
 @require_auth
 def get_hls_segment(camera_id, current_user, segment_name):
-    """Serve HLS segment file."""
+    """Serve HLS segment file. Any authenticated user can view (Live Feed)."""
     camera = CameraRepository.find_by_id(camera_id)
     
     if not camera:
         return jsonify({'error': 'Camera not found'}), 404
-    
-    # Check access: admin or owner
-    if not current_user.is_admin() and camera.user_id != current_user.id:
-        return jsonify({'error': 'Access denied'}), 403
     
     segment_path = streaming_service.get_hls_segment_path(camera_id, segment_name)
     

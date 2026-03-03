@@ -13,39 +13,14 @@ const Dashboard = () => {
   const { isAdmin, user: contextUser } = auth;
 
   useEffect(() => {
-    // Debug: Log authentication state
     const token = authService.getToken();
-    const user = authService.getStoredUser();
-    console.log('Dashboard useEffect:', {
-      isAdmin,
-      hasToken: !!token,
-      tokenLength: token?.length,
-      tokenValue: token ? token.substring(0, 30) + '...' : 'MISSING',
-      user,
-      userRole: user?.role,
-      contextUser: contextUser,
-    });
-
-    // Verify token exists before making request
     if (!token) {
-      console.error('Dashboard: No token found!');
       setError('No authentication token found. Please login again.');
       setLoading(false);
       return;
     }
-
-    if (isAdmin || (user && user.role === 'admin')) {
-      console.log('Dashboard: Loading overview for admin user');
-      loadOverview();
-    } else {
-      setLoading(false);
-      if (user && user.role !== 'admin') {
-        setError('Admin access required. Your role: ' + user.role);
-      } else {
-        setError('Admin access required. Unable to determine user role.');
-      }
-    }
-  }, [isAdmin]);
+    loadOverview();
+  }, []);
 
   const loadOverview = async () => {
     try {
@@ -79,31 +54,6 @@ const Dashboard = () => {
         return 'bg-gray-100 text-gray-800';
     }
   };
-
-  if (!isAdmin) {
-    return (
-      <>
-        {/* Full-screen background */}
-        <div 
-          className="fixed inset-0 -z-10"
-          style={{
-            backgroundImage: `linear-gradient(135deg, rgba(249, 250, 251, 0.90) 0%, rgba(243, 244, 246, 0.93) 100%), 
-                             url('https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80')`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            backgroundAttachment: 'fixed'
-          }}
-        />
-        <div className="relative z-10">
-          <div className="bg-white/90 backdrop-blur-sm shadow-lg rounded-lg p-6 border border-white/50">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Dashboard</h2>
-            <p className="text-gray-600">Admin access required to view dashboard statistics.</p>
-          </div>
-        </div>
-      </>
-    );
-  }
 
   if (loading) {
     return (

@@ -21,6 +21,9 @@ class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'dev-jwt-secret-key-change-in-production')
     JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 3600))  # 1 hour
+    # Allow JWT from query string for HLS stream URLs (video player cannot send Authorization header)
+    JWT_TOKEN_LOCATION = ['headers', 'query_string']
+    JWT_QUERY_STRING_NAME = 'token'
     
     # PostgreSQL Database Configuration
     POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'localhost')

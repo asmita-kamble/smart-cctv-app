@@ -12,9 +12,8 @@ dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/api/dashboard')
 
 @dashboard_bp.route('/overview', methods=['GET'])
 @require_auth
-@require_admin
 def get_overview(current_user):
-    """Get dashboard overview statistics (admin only)."""
+    """Get dashboard overview statistics (all authenticated users)."""
     # Get camera statistics
     total_cameras = len(CameraRepository.find_all())
     active_cameras = len(CameraRepository.find_by_status('active'))

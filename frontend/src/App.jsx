@@ -36,7 +36,7 @@ function App() {
           >
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
-            <Route path="cameras" element={<Cameras />} />
+            <Route path="cameras" element={<ProtectedRoute requireAdmin><Cameras /></ProtectedRoute>} />
             <Route path="alerts" element={<Alerts />} />
             <Route path="activities" element={<Activities />} />
             <Route path="live-feed" element={<LiveFeed />} />
