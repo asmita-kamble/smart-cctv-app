@@ -20,8 +20,9 @@ from app.services.alert_service import AlertService
 import numpy as np
 import face_recognition
 
-# Face match tolerance for allowed-person check (higher = more lenient; 0.6 default, 0.65 helps with angle/lighting)
-ALLOWED_FACE_MATCH_TOLERANCE = 0.65
+# Face match tolerance for allowed-person check (higher = more lenient).
+# Use a slightly stricter value to avoid falsely matching unknown (e.g. hooded) persons to allowed encodings.
+ALLOWED_FACE_MATCH_TOLERANCE = 0.55
 
 
 class VideoProcessingService:
@@ -102,14 +103,12 @@ class VideoProcessingService:
     def _person_matches_allowed_face(person_bbox: List, face_bbox: List) -> bool:
         """
         True if this person detection corresponds to this allowed face (person is allowed).
-        Uses overlap OR face center inside person bbox so allowed persons are not misclassified
-        when face/person bboxes from different detectors don't overlap exactly.
+        Uses overlap OR face center inside person bbox.
         """
         if not person_bbox or not face_bbox or len(person_bbox) < 4 or len(face_bbox) < 4:
             return False
         if VideoProcessingService._bbox_overlaps(person_bbox, face_bbox):
             return True
-        # Face center inside person bbox (person contains the face)
         px, py, pw, ph = person_bbox[0], person_bbox[1], person_bbox[2], person_bbox[3]
         fx, fy, fw, fh = face_bbox[0], face_bbox[1], face_bbox[2], face_bbox[3]
         face_cx = fx + fw / 2
@@ -117,6 +116,50 @@ class VideoProcessingService:
         if px <= face_cx <= px + pw and py <= face_cy <= py + ph:
             return True
         return False
+
+    # Face must be in upper part of person bbox (top 45% by height) to count as "person's face" (avoids hood/artifact)
+    _FACE_IN_PERSON_TOP_RATIO = 0.45
+
+    @staticmethod
+    def _unauthorized_persons_1to1(person_detections: List[Dict], frame_matches: List[Dict]) -> List[Dict]:
+        """
+        Return person detections that are NOT authorized, using 1:1 matching: each allowed face
+        can only authorize one person (the best match). Face must be in upper part of person bbox
+        so hooded persons (face not visible / false detection in center) stay unauthorized.
+        """
+        if not frame_matches:
+            return list(person_detections)
+        authorized_indices = set()
+        for face_match in frame_matches:
+            face_bbox = face_match.get('bbox')
+            if not face_bbox or len(face_bbox) < 4:
+                continue
+            fx, fy, fw, fh = face_bbox[0], face_bbox[1], face_bbox[2], face_bbox[3]
+            fc_x, fc_y = fx + fw / 2, fy + fh / 2
+            best_idx = None
+            best_score = -1.0
+            for i, person in enumerate(person_detections):
+                if i in authorized_indices:
+                    continue
+                p_bbox = person.get('bbox', [])
+                if not p_bbox or len(p_bbox) < 4:
+                    continue
+                px, py, pw, ph = p_bbox[0], p_bbox[1], p_bbox[2], p_bbox[3]
+                # Face must be in upper part of person (real face on body; not hood/center artifact)
+                face_in_upper = py <= fc_y <= py + ph * VideoProcessingService._FACE_IN_PERSON_TOP_RATIO
+                if not face_in_upper:
+                    continue
+                score = 0.0
+                if VideoProcessingService._bbox_overlaps(p_bbox, face_bbox):
+                    score = 2.0
+                elif px <= fc_x <= px + pw and py <= fc_y <= py + ph:
+                    score = 1.0
+                if score > best_score:
+                    best_score = score
+                    best_idx = i
+            if best_idx is not None and best_score > 0:
+                authorized_indices.add(best_idx)
+        return [p for i, p in enumerate(person_detections) if i not in authorized_indices]
     
     def process_video(self, video_path: str, camera_id: int) -> Dict:
         """
@@ -226,14 +269,10 @@ class VideoProcessingService:
                     num_faces_in_frame = 0
                 results['faces_detected'] += face_results['faces_detected']
                 
-                # Unauthorized = persons that don't match any allowed face (for zone rules when we have unknown faces)
-                unauthorized_person_detections = [
-                    p for p in person_detections
-                    if not any(
-                        VideoProcessingService._person_matches_allowed_face(p.get('bbox', []), m['bbox'])
-                        for m in frame_matches
-                    )
-                ]
+                # Unauthorized = persons not assigned to any allowed face (1:1 matching so 3rd person when 2 allowed gets red_zone_entry)
+                unauthorized_person_detections = VideoProcessingService._unauthorized_persons_1to1(
+                    person_detections, frame_matches
+                )
                 # In restricted zone with allowed list: never create weapon/mask/suspicious alerts (red_zone_entry still allowed)
                 skip_weapon_mask_suspicious = is_restricted and bool(allowed_encodings_with_names)
                 
@@ -697,14 +736,10 @@ class VideoProcessingService:
             # Apply alert rules for image processing (reuse person_detections from above)
             person_detections = person_detections_for_allowed
             
-            # Unauthorized persons for zone/rule alerts (exclude allowed faces)
-            unauthorized_person_detections = [
-                p for p in person_detections
-                if not any(
-                    VideoProcessingService._person_matches_allowed_face(p.get('bbox', []), m['bbox'])
-                    for m in frame_matches
-                )
-            ]
+            # Unauthorized persons for zone/rule alerts (1:1 matching so unknown person gets red_zone_entry)
+            unauthorized_person_detections = VideoProcessingService._unauthorized_persons_1to1(
+                person_detections, frame_matches
+            )
             
             # Object detection for weapons and abandoned objects
             weapon_detections = self.object_detection.detect_weapons(frame, confidence_threshold=0.40)  # Lowered threshold
