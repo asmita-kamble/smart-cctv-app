@@ -28,6 +28,7 @@ const Alerts = () => {
     try {
       await alertService.resolve(id);
       loadAlerts();
+      window.dispatchEvent(new Event('refresh-notifications'));
     } catch (err) {
       setError('Failed to resolve alert');
     }

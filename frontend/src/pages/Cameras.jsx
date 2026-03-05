@@ -275,7 +275,7 @@ const Cameras = () => {
       const result = await videoService.upload(file, cameraId);
       setSuccess(`Video uploaded and processed successfully! Alerts created: ${result.results?.alerts_created || 0}`);
       setUploadModal(null);
-      // Reload cameras to show updated data
+      window.dispatchEvent(new Event('refresh-notifications'));
       setTimeout(() => {
         setSuccess('');
       }, 5000);
@@ -297,7 +297,7 @@ const Cameras = () => {
       const result = await videoService.uploadImage(file, cameraId);
       setSuccess(`Image uploaded and processed successfully! Alerts created: ${result.results?.alerts_created || 0}`);
       setUploadModal(null);
-      // Reload cameras to show updated data
+      window.dispatchEvent(new Event('refresh-notifications'));
       setTimeout(() => {
         setSuccess('');
       }, 5000);
