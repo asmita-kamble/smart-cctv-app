@@ -527,7 +527,7 @@ class AlertRulesService:
                 if v['timestamp'] > cutoff_time
             ]
             
-            # Check for multiple violations
+            # multiple_zone_violations = summary alert when 3+ zone violation events in last 5 min (e.g. several persons in restricted zone)
             # Only alert once per 5-minute window to prevent duplicates
             if len(self.zone_violations[camera_id]) >= 3:
                 # Check if we've already alerted in this time window

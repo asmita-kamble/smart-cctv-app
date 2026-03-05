@@ -107,7 +107,8 @@ const AlertMediaViewer = ({ src, name, isVideo, onClose, cameraId, videoPath }) 
     videoService
       .getDetections(cameraId, videoPath)
       .then((data) => {
-        if (!cancelled && data?.frames && Object.keys(data.frames).length > 0) {
+        // Accept whenever we have a frames object (keys can be frame numbers with match data for overlay names)
+        if (!cancelled && data?.frames && typeof data.frames === 'object') {
           allowedDetectionsRef.current = data;
           setAllowedDetections(data);
         } else {

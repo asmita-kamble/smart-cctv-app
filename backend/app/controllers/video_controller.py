@@ -190,9 +190,8 @@ def get_video_detections(current_user):
     video_filename = request.args.get('video_filename', '').strip()
     if not camera_id or not video_filename:
         return jsonify({'fps': 30, 'frames': {}}), 200
-    # Security: allow only basename to avoid path traversal
-    if os.path.basename(video_filename) != video_filename:
-        return jsonify({'fps': 30, 'frames': {}}), 200
+    # Use basename only (matches path used when saving .allowed_matches.json in video processing)
+    video_filename = os.path.basename(video_filename)
     camera = CameraRepository.find_by_id(camera_id)
     if not camera:
         return jsonify({'error': 'Camera not found'}), 404

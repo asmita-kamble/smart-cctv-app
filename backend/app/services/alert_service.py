@@ -16,7 +16,7 @@ class AlertService:
     """Service for alert management and notifications."""
     
     # Deduplication time window (seconds) - prevent duplicate alerts within this window
-    DEDUP_TIME_WINDOW = 60  # 60 seconds default for video processing (longer to prevent duplicates)
+    DEDUP_TIME_WINDOW = 300  # 5 minutes default for alert activity deduplication
     
     # Per-alert-type deduplication windows (seconds)
     # Longer windows to prevent duplicates during video processing

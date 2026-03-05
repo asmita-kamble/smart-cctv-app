@@ -20,6 +20,9 @@ from app.services.alert_service import AlertService
 import numpy as np
 import face_recognition
 
+# Face match tolerance for allowed-person check (higher = more lenient; 0.6 default, 0.65 helps with angle/lighting)
+ALLOWED_FACE_MATCH_TOLERANCE = 0.65
+
 
 class VideoProcessingService:
     """Service for video processing and analysis."""
@@ -85,6 +88,35 @@ class VideoProcessingService:
             frame_count += 1
         
         cap.release()
+    
+    @staticmethod
+    def _bbox_overlaps(bbox1: List, bbox2: List) -> bool:
+        """Check if two bboxes [x, y, w, h] overlap (intersect)."""
+        if not bbox1 or not bbox2 or len(bbox1) < 4 or len(bbox2) < 4:
+            return False
+        x1, y1, w1, h1 = bbox1[0], bbox1[1], bbox1[2], bbox1[3]
+        x2, y2, w2, h2 = bbox2[0], bbox2[1], bbox2[2], bbox2[3]
+        return not (x1 + w1 <= x2 or x2 + w2 <= x1 or y1 + h1 <= y2 or y2 + h2 <= y1)
+
+    @staticmethod
+    def _person_matches_allowed_face(person_bbox: List, face_bbox: List) -> bool:
+        """
+        True if this person detection corresponds to this allowed face (person is allowed).
+        Uses overlap OR face center inside person bbox so allowed persons are not misclassified
+        when face/person bboxes from different detectors don't overlap exactly.
+        """
+        if not person_bbox or not face_bbox or len(person_bbox) < 4 or len(face_bbox) < 4:
+            return False
+        if VideoProcessingService._bbox_overlaps(person_bbox, face_bbox):
+            return True
+        # Face center inside person bbox (person contains the face)
+        px, py, pw, ph = person_bbox[0], person_bbox[1], person_bbox[2], person_bbox[3]
+        fx, fy, fw, fh = face_bbox[0], face_bbox[1], face_bbox[2], face_bbox[3]
+        face_cx = fx + fw / 2
+        face_cy = fy + fh / 2
+        if px <= face_cx <= px + pw and py <= face_cy <= py + ph:
+            return True
+        return False
     
     def process_video(self, video_path: str, camera_id: int) -> Dict:
         """
@@ -165,10 +197,11 @@ class VideoProcessingService:
                 # Face detection (for mask and spoofing detection)
                 face_results = self.face_detection.process_frame(frame)
 
-                # Match faces to allowed persons when restricted zone has allowed list (for playback overlay)
+                # Match faces to allowed persons when restricted zone has allowed list (for playback overlay + names)
+                frame_all_only_allowed = False
+                frame_matches = []
                 if allowed_encodings_with_names:
                     faces_with_encodings = self.face_detection.detect_faces(frame)
-                    frame_matches = []
                     for face in faces_with_encodings:
                         enc_list = face.get('encoding')
                         if enc_list is None:
@@ -183,11 +216,26 @@ class VideoProcessingService:
                             int(loc['bottom'] - loc['top'])
                         ]
                         for name, allowed_enc in allowed_encodings_with_names:
-                            if face_recognition.compare_faces([allowed_enc], face_enc, tolerance=0.6)[0]:
-                                frame_matches.append({'bbox': bbox, 'name': name})
+                            if face_recognition.compare_faces([allowed_enc], face_enc, tolerance=ALLOWED_FACE_MATCH_TOLERANCE)[0]:
+                                frame_matches.append({'bbox': bbox, 'name': name or 'Unknown'})
                                 break
                     allowed_matches_by_frame[str(frame_num)] = frame_matches
+                    # num_faces_in_frame used below for frame_all_only_allowed
+                    num_faces_in_frame = len(faces_with_encodings)
+                else:
+                    num_faces_in_frame = 0
                 results['faces_detected'] += face_results['faces_detected']
+                
+                # Unauthorized = persons that don't match any allowed face (for zone rules when we have unknown faces)
+                unauthorized_person_detections = [
+                    p for p in person_detections
+                    if not any(
+                        VideoProcessingService._person_matches_allowed_face(p.get('bbox', []), m['bbox'])
+                        for m in frame_matches
+                    )
+                ]
+                # In restricted zone with allowed list: never create weapon/mask/suspicious alerts (red_zone_entry still allowed)
+                skip_weapon_mask_suspicious = is_restricted and bool(allowed_encodings_with_names)
                 
                 # Object detection for weapons and abandoned objects
                 weapon_detections = self.object_detection.detect_weapons(frame, confidence_threshold=0.40)  # Lowered threshold
@@ -197,43 +245,42 @@ class VideoProcessingService:
                 if frame_num % 300 == 0:  # Log every 10 seconds
                     print(f"Frame {frame_num}: Weapon detection - found {len(weapon_detections)} weapons")
                 
-                # Create alerts for weapons detected
-                for weapon in weapon_detections:
-                    try:
-                        weapon_type = weapon.get('type', 'unknown')
-                        confidence = weapon.get('confidence', 0.0)
-                        detection_method = weapon.get('detection_method', 'unknown')
-                        
-                        # Simple message without frame/confidence to allow proper deduplication
-                        # Use very short deduplication window (1 second) for video processing
-                        alert_result, alert_status = AlertService.create_alert(
-                            camera_id=camera_id,
-                            alert_type='weapon_detected',
-                            message=f'Weapon detected: {weapon_type}',
-                            severity='high',
-                            metadata={
-                                'video_path': video_path,
-                                'frame': frame_num,
-                                'weapon_type': weapon_type,
-                                'confidence': confidence,
-                                'bbox': weapon.get('bbox'),
-                                'class_name': weapon.get('class_name', ''),
-                                'detection_method': detection_method,
-                                'near_person': weapon.get('near_person', False),
-                                'aspect_ratio': weapon.get('aspect_ratio', 0)
-                            },
-                            deduplicate=True,  # Re-enable deduplication
-                            dedup_time_window=60  # 60 second window for video processing
-                        )
-                        if alert_status == 201:
-                            results['alerts_created'] += 1
-                            print(f"Frame {frame_num}: Created weapon_detected alert - {weapon_type} (confidence: {confidence:.2f})")
-                        else:
-                            print(f"Frame {frame_num}: Failed to create weapon alert: {alert_result}")
-                    except Exception as e:
-                        print(f"Frame {frame_num}: Error creating weapon alert: {str(e)}")
-                        import traceback
-                        traceback.print_exc()
+                # Create alerts for weapons detected (skip in restricted zone when camera has allowed persons)
+                if not skip_weapon_mask_suspicious:
+                    for weapon in weapon_detections:
+                        try:
+                            weapon_type = weapon.get('type', 'unknown')
+                            confidence = weapon.get('confidence', 0.0)
+                            detection_method = weapon.get('detection_method', 'unknown')
+                            
+                            alert_result, alert_status = AlertService.create_alert(
+                                camera_id=camera_id,
+                                alert_type='weapon_detected',
+                                message=f'Weapon detected: {weapon_type}',
+                                severity='high',
+                                metadata={
+                                    'video_path': video_path,
+                                    'frame': frame_num,
+                                    'weapon_type': weapon_type,
+                                    'confidence': confidence,
+                                    'bbox': weapon.get('bbox'),
+                                    'class_name': weapon.get('class_name', ''),
+                                    'detection_method': detection_method,
+                                    'near_person': weapon.get('near_person', False),
+                                    'aspect_ratio': weapon.get('aspect_ratio', 0)
+                                },
+                                deduplicate=True,
+                                dedup_time_window=300
+                            )
+                            if alert_status == 201:
+                                results['alerts_created'] += 1
+                                print(f"Frame {frame_num}: Created weapon_detected alert - {weapon_type} (confidence: {confidence:.2f})")
+                            else:
+                                print(f"Frame {frame_num}: Failed to create weapon alert: {alert_result}")
+                        except Exception as e:
+                            print(f"Frame {frame_num}: Error creating weapon alert: {str(e)}")
+                            import traceback
+                            traceback.print_exc()
                 
                 # Create alerts for abandoned objects
                 for obj in abandoned_objects:
@@ -250,7 +297,7 @@ class VideoProcessingService:
                             'bbox': obj.get('bbox')
                         },
                         deduplicate=True,
-                        dedup_time_window=1  # Very short window: 1 second for video processing
+                        dedup_time_window=300  # 5 minute window for alert activity deduplication
                     )
                     if alert_status == 201:
                         results['alerts_created'] += 1
@@ -271,19 +318,18 @@ class VideoProcessingService:
                                 'confidence': face['spoof_confidence']
                             },
                             deduplicate=True,
-                            dedup_time_window=1  # Very short window: 1 second for video processing
+                            dedup_time_window=300  # 5 minute window for alert activity deduplication
                         )
                         if alert_status == 201:
                             results['alerts_created'] += 1
                 
-                # Mask detection
+                # Mask detection (skip alert when restricted zone and only allowed persons in frame)
                 mask_results = self.mask_detection.process_frame(frame)
                 if mask_results['compliance_rate'] < 1.0:
                     mask_violations = sum(1 for m in mask_results['mask_compliance'] if not m['has_mask'])
                     results['mask_violations'] += mask_violations
                     
-                    if mask_violations > 0:
-                        # Create alert for mask violation (HIGH PRIORITY per alert rules)
+                    if mask_violations > 0 and not skip_weapon_mask_suspicious:
                         alert_result, alert_status = AlertService.create_alert(
                             camera_id=camera_id,
                             alert_type='mask_violation',
@@ -295,7 +341,7 @@ class VideoProcessingService:
                                 'violations': mask_violations
                             },
                             deduplicate=True,
-                            dedup_time_window=1  # Very short window: 1 second for video processing
+                            dedup_time_window=300
                         )
                         if alert_status == 201:
                             results['alerts_created'] += 1
@@ -318,44 +364,41 @@ class VideoProcessingService:
                 if is_suspicious or motion_percentage > 5.0:  # Lower threshold from 15% to 5%
                     results['suspicious_activities'] += 1
                     
-                    # Determine activity type and confidence
-                    if is_suspicious:
-                        activity_type = suspicious_result.get('activity_type', 'suspicious_activity')
-                        confidence = suspicious_result.get('confidence', 0.5)
-                    else:
-                        activity_type = 'motion_detected'
-                        confidence = min(motion_percentage / 20.0, 1.0)  # Scale confidence based on motion
-                    
-                    # Create alert for suspicious activity
-                    try:
-                        # Simple message without motion percentage to prevent duplicates
-                        simple_message = "Suspicious activity detected"
-                        # Use very short deduplication window (1 second) for video processing
-                        alert_result, alert_status = AlertService.create_alert(
-                            camera_id=camera_id,
-                            alert_type='suspicious_activity',
-                            message=simple_message,
-                            severity='high' if is_suspicious else 'medium',
-                            metadata={
-                                'video_path': video_path,
-                                'frame': frame_num,
-                                'activity_type': activity_type,
-                                'confidence': confidence,
-                                'motion_percentage': motion_percentage,
-                                'motion_pixels': motion_result.get('motion_pixels', 0)
-                            },
-                            deduplicate=True,  # Re-enable deduplication
-                            dedup_time_window=60  # 60 second window for video processing
-                        )
-                        if alert_status == 201:
-                            results['alerts_created'] += 1
-                            print(f"Frame {frame_num}: Created suspicious_activity alert - {activity_type} (motion: {motion_percentage:.1f}%)")
-                        else:
-                            print(f"Frame {frame_num}: Failed to create alert: {alert_result}")
-                    except Exception as e:
-                        print(f"Frame {frame_num}: Error creating suspicious activity alert: {str(e)}")
-                        import traceback
-                        traceback.print_exc()
+                    # Create alert for suspicious activity (skip in restricted zone when camera has allowed persons)
+                    if not skip_weapon_mask_suspicious:
+                        try:
+                            if is_suspicious:
+                                activity_type = suspicious_result.get('activity_type', 'suspicious_activity')
+                                confidence = suspicious_result.get('confidence', 0.5)
+                            else:
+                                activity_type = 'motion_detected'
+                                confidence = min(motion_percentage / 20.0, 1.0)
+                            simple_message = "Suspicious activity detected"
+                            alert_result, alert_status = AlertService.create_alert(
+                                camera_id=camera_id,
+                                alert_type='suspicious_activity',
+                                message=simple_message,
+                                severity='high' if is_suspicious else 'medium',
+                                metadata={
+                                    'video_path': video_path,
+                                    'frame': frame_num,
+                                    'activity_type': activity_type,
+                                    'confidence': confidence,
+                                    'motion_percentage': motion_percentage,
+                                    'motion_pixels': motion_result.get('motion_pixels', 0)
+                                },
+                                deduplicate=True,
+                                dedup_time_window=300
+                            )
+                            if alert_status == 201:
+                                results['alerts_created'] += 1
+                                print(f"Frame {frame_num}: Created suspicious_activity alert - {activity_type} (motion: {motion_percentage:.1f}%)")
+                            else:
+                                print(f"Frame {frame_num}: Failed to create alert: {alert_result}")
+                        except Exception as e:
+                            print(f"Frame {frame_num}: Error creating suspicious activity alert: {str(e)}")
+                            import traceback
+                            traceback.print_exc()
                     # Activities are only for uploads (video/image); detection events are logged as Alerts only.
                 
                 # Apply alert rules (with error handling)
@@ -365,17 +408,20 @@ class VideoProcessingService:
                     self.alert_rules.pixels_per_meter = camera_config['pixels_per_meter']
                 
                 try:
+                    # Always pass unauthorized persons to alert_rules so red_zone_entry and other zone alerts still fire
                     alert_rules_result = self.alert_rules.analyze_frame(
                         frame=frame,
-                        person_detections=person_detections,
+                        person_detections=unauthorized_person_detections,
                         camera_id=camera_id,
                         timestamp=timestamp,
                         camera_config=camera_config,
                         fps=fps
                     )
                     
-                    # Create alerts from alert rules
+                    # Create alerts from alert rules (skip multiple_zone_violations in restricted zone with allowed list)
                     for alert_data in alert_rules_result.get('alerts', []):
+                        if skip_weapon_mask_suspicious and alert_data.get('alert_type') == 'multiple_zone_violations':
+                            continue
                         try:
                             alert_result, alert_status = AlertService.create_alert(
                                 camera_id=camera_id,
@@ -388,7 +434,7 @@ class VideoProcessingService:
                                     **alert_data.get('metadata', {})
                                 },
                                 deduplicate=True,
-                                dedup_time_window=1  # Very short window: 1 second for video processing
+                                dedup_time_window=300
                             )
                             if alert_status == 201:
                                 results['alerts_created'] += 1
@@ -404,10 +450,11 @@ class VideoProcessingService:
                 previous_frame = frame.copy()
                 results['frames_processed'] += 1
 
-            # Save allowed-person match data for playback overlay (restricted zone + allowed persons with names)
+            # Save allowed-person match data for playback overlay (path must match GET /videos/detections)
             if allowed_matches_by_frame:
                 try:
-                    detections_path = video_path + '.allowed_matches.json'
+                    # Same path as API: UPLOAD_FOLDER + basename(video) so client request with video_filename finds it
+                    detections_path = os.path.join(Config.UPLOAD_FOLDER, os.path.basename(video_path)) + '.allowed_matches.json'
                     with open(detections_path, 'w') as f:
                         json.dump({'fps': fps, 'frames': allowed_matches_by_frame}, f)
                 except Exception as save_err:
@@ -479,6 +526,29 @@ class VideoProcessingService:
             print(f"Processing image: {image_path}")
             print(f"Image shape: {frame.shape}")
             
+            # Get camera config early for restricted-zone / allowed-person logic
+            camera = CameraRepository.find_by_id(camera_id)
+            calibration_config = CameraCalibrationService.get_calibration_config(camera) if camera else {}
+            zone_config = CameraCalibrationService.get_zone_config(camera) if camera else {}
+            camera_config = {
+                'is_restricted_zone': zone_config.get('is_restricted_zone', False),
+                'red_zones': zone_config.get('red_zones', []),
+                'yellow_zones': zone_config.get('yellow_zones', []),
+                'sensitive_areas': zone_config.get('sensitive_areas', []),
+                'pixels_per_meter': calibration_config.get('pixels_per_meter')
+            }
+            is_restricted = camera_config.get('is_restricted_zone', False)
+            allowed_encodings_with_names = []
+            if is_restricted:
+                allowed_persons = AllowedPersonRepository.find_by_camera_id(camera_id)
+                for ap in allowed_persons:
+                    if not ap.name or not ap.image_path:
+                        continue
+                    enc = self.face_detection.get_encoding_from_image_path(ap.image_path)
+                    if enc is not None:
+                        allowed_encodings_with_names.append((ap.name, enc))
+            frame_matches = []
+            
             # Face detection
             try:
                 face_results = self.face_detection.process_frame(frame)
@@ -513,6 +583,33 @@ class VideoProcessingService:
                         print(f"Error creating face_spoof alert: {str(e)}")
                         results['warnings'].append(f'Alert creation error: {str(e)}')
             
+            # Person detection and face matching for overlay + unauthorized list for zone alerts
+            person_detections_for_allowed = self.object_detection.detect_persons(frame, confidence_threshold=0.25)
+            for i, person in enumerate(person_detections_for_allowed):
+                person['id'] = hash(f"{camera_id}_{i}_{person.get('bbox', [0])[0]}")
+            if allowed_encodings_with_names:
+                faces_with_encodings = self.face_detection.detect_faces(frame)
+                frame_matches = []
+                for face in faces_with_encodings:
+                    enc_list = face.get('encoding')
+                    if enc_list is None:
+                        continue
+                    face_enc = np.array(enc_list, dtype=np.float64)
+                    loc = face['location']
+                    bbox = [
+                        int(loc['left']), int(loc['top']),
+                        int(loc['right'] - loc['left']), int(loc['bottom'] - loc['top'])
+                    ]
+                    for name, allowed_enc in allowed_encodings_with_names:
+                        if face_recognition.compare_faces([allowed_enc], face_enc, tolerance=ALLOWED_FACE_MATCH_TOLERANCE)[0]:
+                            frame_matches.append({'bbox': bbox, 'name': name or 'Unknown'})
+                            break
+                num_faces_in_image = len(faces_with_encodings)
+            else:
+                frame_matches = []
+            # In restricted zone with allowed list: never create weapon/mask/suspicious (red_zone_entry still allowed)
+            skip_weapon_mask_suspicious_image = is_restricted and bool(allowed_encodings_with_names)
+            
             # Mask detection
             try:
                 mask_results = self.mask_detection.process_frame(frame)
@@ -522,8 +619,7 @@ class VideoProcessingService:
                     mask_violations = sum(1 for m in mask_results.get('mask_compliance', []) if not m.get('has_mask', True))
                     results['mask_violations'] += mask_violations
                     
-                    if mask_violations > 0:
-                        # Create alert for mask violation (HIGH PRIORITY per alert rules)
+                    if mask_violations > 0 and not skip_weapon_mask_suspicious_image:
                         try:
                             AlertService.create_alert(
                                 camera_id=camera_id,
@@ -578,8 +674,7 @@ class VideoProcessingService:
                     import traceback
                     traceback.print_exc()
                     results['warnings'].append(f'Info alert creation error: {str(e)}')
-            elif results['mask_violations'] > 0 and results['alerts_created'] == 0:
-                # If mask violations detected but no alert created, create one
+            elif results['mask_violations'] > 0 and results['alerts_created'] == 0 and not skip_weapon_mask_suspicious_image:
                 print(f"Mask violations detected ({results['mask_violations']}) but no alert created - creating mask_violation alert")
                 try:
                     AlertService.create_alert(
@@ -599,13 +694,17 @@ class VideoProcessingService:
                     print(f"Error creating fallback mask_violation alert: {str(e)}")
                     results['warnings'].append(f'Fallback alert creation error: {str(e)}')
             
-            # Apply alert rules for image processing
-            # Person detection using YOLO (more accurate than face-based)
-            person_detections = self.object_detection.detect_persons(frame, confidence_threshold=0.25)
+            # Apply alert rules for image processing (reuse person_detections from above)
+            person_detections = person_detections_for_allowed
             
-            # Add unique IDs to person detections
-            for i, person in enumerate(person_detections):
-                person['id'] = hash(f"{camera_id}_{i}_{person.get('bbox', [0])[0]}")
+            # Unauthorized persons for zone/rule alerts (exclude allowed faces)
+            unauthorized_person_detections = [
+                p for p in person_detections
+                if not any(
+                    VideoProcessingService._person_matches_allowed_face(p.get('bbox', []), m['bbox'])
+                    for m in frame_matches
+                )
+            ]
             
             # Object detection for weapons and abandoned objects
             weapon_detections = self.object_detection.detect_weapons(frame, confidence_threshold=0.40)  # Lowered threshold
@@ -613,39 +712,38 @@ class VideoProcessingService:
             
             print(f"Image processing: Weapon detection - found {len(weapon_detections)} weapons")
             
-            # Create alerts for weapons detected
-            for weapon in weapon_detections:
-                try:
-                    weapon_type = weapon.get('type', 'unknown')
-                    confidence = weapon.get('confidence', 0.0)
-                    detection_method = weapon.get('detection_method', 'unknown')
-                    
-                    # Simple message without confidence/method to allow proper deduplication
-                    alert_result, alert_status = AlertService.create_alert(
-                        camera_id=camera_id,
-                        alert_type='weapon_detected',
-                        message=f'Weapon detected: {weapon_type}',
-                        severity='high',
-                        metadata={
-                            'image_path': image_path,
-                            'weapon_type': weapon_type,
-                            'confidence': confidence,
-                            'bbox': weapon.get('bbox'),
-                            'class_name': weapon.get('class_name', ''),
-                            'detection_method': detection_method,
-                            'near_person': weapon.get('near_person', False),
-                            'aspect_ratio': weapon.get('aspect_ratio', 0)
-                        }
-                    )
-                    if alert_status == 201:
-                        results['alerts_created'] += 1
-                        print(f"Created weapon_detected alert - {weapon_type} (confidence: {confidence:.2f})")
-                    else:
-                        print(f"Failed to create weapon alert: {alert_result}")
-                except Exception as e:
-                    print(f"Error creating weapon alert: {str(e)}")
-                    import traceback
-                    traceback.print_exc()
+            # Create alerts for weapons detected (skip in restricted zone when camera has allowed persons)
+            if not skip_weapon_mask_suspicious_image:
+                for weapon in weapon_detections:
+                    try:
+                        weapon_type = weapon.get('type', 'unknown')
+                        confidence = weapon.get('confidence', 0.0)
+                        detection_method = weapon.get('detection_method', 'unknown')
+                        alert_result, alert_status = AlertService.create_alert(
+                            camera_id=camera_id,
+                            alert_type='weapon_detected',
+                            message=f'Weapon detected: {weapon_type}',
+                            severity='high',
+                            metadata={
+                                'image_path': image_path,
+                                'weapon_type': weapon_type,
+                                'confidence': confidence,
+                                'bbox': weapon.get('bbox'),
+                                'class_name': weapon.get('class_name', ''),
+                                'detection_method': detection_method,
+                                'near_person': weapon.get('near_person', False),
+                                'aspect_ratio': weapon.get('aspect_ratio', 0)
+                            }
+                        )
+                        if alert_status == 201:
+                            results['alerts_created'] += 1
+                            print(f"Created weapon_detected alert - {weapon_type} (confidence: {confidence:.2f})")
+                        else:
+                            print(f"Failed to create weapon alert: {alert_result}")
+                    except Exception as e:
+                        print(f"Error creating weapon alert: {str(e)}")
+                        import traceback
+                        traceback.print_exc()
             
             # Create alerts for abandoned objects
             for obj in abandoned_objects:
@@ -666,19 +764,7 @@ class VideoProcessingService:
                 except Exception as e:
                     print(f"Error creating abandoned object alert: {str(e)}")
             
-            # Get camera configuration
-            camera = CameraRepository.find_by_id(camera_id)
-            calibration_config = CameraCalibrationService.get_calibration_config(camera) if camera else {}
-            zone_config = CameraCalibrationService.get_zone_config(camera) if camera else {}
-            
-            camera_config = {
-                'is_restricted_zone': zone_config.get('is_restricted_zone', False),
-                'red_zones': zone_config.get('red_zones', []),
-                'yellow_zones': zone_config.get('yellow_zones', []),
-                'sensitive_areas': zone_config.get('sensitive_areas', []),
-                'pixels_per_meter': calibration_config.get('pixels_per_meter')
-            }
-            
+            # Always pass unauthorized persons to alert_rules so red_zone_entry and other zone alerts still fire
             # Apply alert rules (with error handling)
             timestamp = datetime.utcnow()
             
@@ -689,15 +775,17 @@ class VideoProcessingService:
             try:
                 alert_rules_result = self.alert_rules.analyze_frame(
                     frame=frame,
-                    person_detections=person_detections,
+                    person_detections=unauthorized_person_detections,
                     camera_id=camera_id,
                     timestamp=timestamp,
                     camera_config=camera_config,
                     fps=30.0
                 )
                 
-                # Create alerts from alert rules
+                # Create alerts from alert rules (skip multiple_zone_violations in restricted zone with allowed list)
                 for alert_data in alert_rules_result.get('alerts', []):
+                    if skip_weapon_mask_suspicious_image and alert_data.get('alert_type') == 'multiple_zone_violations':
+                        continue
                     try:
                         AlertService.create_alert(
                             camera_id=camera_id,
