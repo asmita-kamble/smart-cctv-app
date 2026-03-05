@@ -117,6 +117,29 @@ class VideoProcessingService:
             return True
         return False
 
+    @staticmethod
+    def _bbox_iou(bbox1: List, bbox2: List) -> float:
+        """IoU between two [x, y, w, h] boxes."""
+        if not bbox1 or not bbox2 or len(bbox1) < 4 or len(bbox2) < 4:
+            return 0.0
+        x1, y1, w1, h1 = bbox1[0], bbox1[1], bbox1[2], bbox1[3]
+        x2, y2, w2, h2 = bbox2[0], bbox2[1], bbox2[2], bbox2[3]
+        xa = max(x1, x2)
+        ya = max(y1, y2)
+        xb = min(x1 + w1, x2 + w2)
+        yb = min(y1 + h1, y2 + h2)
+        inter_w = max(0, xb - xa)
+        inter_h = max(0, yb - ya)
+        inter = inter_w * inter_h
+        if inter <= 0:
+            return 0.0
+        area1 = max(0, w1) * max(0, h1)
+        area2 = max(0, w2) * max(0, h2)
+        denom = area1 + area2 - inter
+        if denom <= 0:
+            return 0.0
+        return inter / denom
+
     # Face must be in upper part of person bbox (top 45% by height) to count as "person's face" (avoids hood/artifact)
     _FACE_IN_PERSON_TOP_RATIO = 0.45
 
@@ -137,7 +160,7 @@ class VideoProcessingService:
             fx, fy, fw, fh = face_bbox[0], face_bbox[1], face_bbox[2], face_bbox[3]
             fc_x, fc_y = fx + fw / 2, fy + fh / 2
             best_idx = None
-            best_score = -1.0
+            best_score = 0.0
             for i, person in enumerate(person_detections):
                 if i in authorized_indices:
                     continue
@@ -149,15 +172,14 @@ class VideoProcessingService:
                 face_in_upper = py <= fc_y <= py + ph * VideoProcessingService._FACE_IN_PERSON_TOP_RATIO
                 if not face_in_upper:
                     continue
-                score = 0.0
-                if VideoProcessingService._bbox_overlaps(p_bbox, face_bbox):
-                    score = 2.0
-                elif px <= fc_x <= px + pw and py <= fc_y <= py + ph:
-                    score = 1.0
+                # Use IoU as score; require reasonable overlap
+                iou = VideoProcessingService._bbox_iou(p_bbox, face_bbox)
+                score = iou
                 if score > best_score:
                     best_score = score
                     best_idx = i
-            if best_idx is not None and best_score > 0:
+            # Require minimum IoU so loose overlaps (e.g. hood area) don't authorize the person
+            if best_idx is not None and best_score >= 0.15:
                 authorized_indices.add(best_idx)
         return [p for i, p in enumerate(person_detections) if i not in authorized_indices]
     
